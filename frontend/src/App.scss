@@ -57,15 +57,25 @@
   letter-spacing: 1.2px;
 }
 
+.sidebar-section-label {
+  margin-top: 28px;
+}
+
 .nav-item {
   display: flex;
+  width: 100%;
   min-height: 42px;
   align-items: center;
   gap: 11px;
   padding: 0 11px;
+  border: 0;
   border-radius: 4px;
   color: #e8eee6;
   font-size: 13px;
+  font-family: inherit;
+  text-align: left;
+  background: transparent;
+  cursor: pointer;
 }
 
 .nav-item-active {
@@ -170,6 +180,324 @@
 
 .product-form {
   border-top: 1px solid #dfe3dc;
+}
+
+.catalog-heading {
+  align-items: center;
+}
+
+.new-product-button {
+  flex-shrink: 0;
+}
+
+.catalog-panel {
+  border-top: 1px solid #dfe3dc;
+  border-bottom: 1px solid #dfe3dc;
+  background: #fff;
+}
+
+.catalog-toolbar {
+  display: flex;
+  min-height: 66px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 17px;
+  border-bottom: 1px solid #e7e9e5;
+}
+
+.search-field input {
+  width: min(360px, 58vw);
+  min-height: 36px;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border: 1px solid #d7dcd5;
+  border-radius: 3px;
+  outline: none;
+  color: #303a32;
+  background: #fff;
+  font: 12px 'Trebuchet MS', 'Segoe UI', sans-serif;
+}
+
+.search-field input:focus {
+  border-color: #587260;
+  box-shadow: 0 0 0 2px rgb(88 114 96 / 13%);
+}
+
+.product-count {
+  color: #777e76;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.catalog-feedback {
+  padding: 13px 17px 0;
+  font-size: 12px;
+}
+
+.catalog-empty {
+  padding: 35px 17px;
+  color: #777e76;
+  font-size: 12px;
+  text-align: center;
+}
+
+.table-scroll {
+  overflow-x: auto;
+}
+
+.product-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  text-align: left;
+}
+
+.product-table th {
+  padding: 12px 14px;
+  color: #7b827a;
+  background: #fafbf9;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.product-table td {
+  padding: 13px 14px;
+  border-top: 1px solid #edf0eb;
+  color: #59635a;
+  white-space: nowrap;
+}
+
+.product-name-cell {
+  min-width: 170px;
+}
+
+.product-name-cell strong,
+.product-name-cell span {
+  display: block;
+}
+
+.product-name-cell strong {
+  overflow: hidden;
+  max-width: 230px;
+  color: #303b33;
+  font-size: 12px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+}
+
+.product-name-cell span {
+  margin-top: 3px;
+  color: #939990;
+  font-size: 10px;
+}
+
+.status-label {
+  display: inline-block;
+  padding: 4px 7px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.status-active {
+  color: #356846;
+  background: #e8f1e9;
+}
+
+.status-inactive {
+  color: #7b6551;
+  background: #f2eee8;
+}
+
+.row-actions {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+}
+
+.text-action {
+  padding: 4px 0;
+  border: 0;
+  color: #385945;
+  background: transparent;
+  font: 700 11px 'Trebuchet MS', 'Segoe UI', sans-serif;
+  cursor: pointer;
+}
+
+.text-action:hover:not(:disabled) {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.text-action:focus-visible {
+  outline: 2px solid #9b7041;
+  outline-offset: 2px;
+}
+
+.text-action-delete {
+  color: #a13e32;
+}
+
+.text-action:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.cancel-edit-button {
+  margin-right: auto;
+  color: #59635a;
+}
+
+.visually-hidden {
+  position: absolute;
+  overflow: hidden;
+  width: 1px;
+  height: 1px;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  clip-path: inset(50%);
+}
+
+.subscription-heading {
+  margin-bottom: 21px;
+}
+
+.subscription-new-button {
+  flex-shrink: 0;
+}
+
+.subscription-tabs {
+  display: flex;
+  gap: 25px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid #dfe3dc;
+}
+
+.subscription-tab {
+  position: relative;
+  min-height: 39px;
+  padding: 0 1px;
+  border: 0;
+  color: #737a72;
+  background: transparent;
+  font: 12px 'Trebuchet MS', 'Segoe UI', sans-serif;
+  cursor: pointer;
+}
+
+.subscription-tab-active {
+  color: #314c3b;
+  font-weight: 700;
+}
+
+.subscription-tab-active::after {
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  left: 0;
+  height: 2px;
+  background: #486b53;
+  content: '';
+}
+
+.subscription-tab:focus-visible {
+  outline: 2px solid #9b7041;
+  outline-offset: 2px;
+}
+
+.subscription-form {
+  border-top: 1px solid #dfe3dc;
+}
+
+.subscription-form-section {
+  grid-template-columns: 225px minmax(0, 1fr);
+}
+
+.subscription-form-last {
+  border-bottom: 1px solid #dfe3dc;
+}
+
+.plan-product-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.plan-product-choice {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #e1e5de;
+  border-radius: 3px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.plan-product-choice input {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+  margin: 1px 0 0;
+  accent-color: #385945;
+}
+
+.plan-product-choice span,
+.plan-product-choice strong,
+.plan-product-choice small {
+  display: block;
+}
+
+.plan-product-choice span {
+  min-width: 0;
+}
+
+.plan-product-choice strong {
+  overflow: hidden;
+  color: #303b33;
+  font-size: 11px;
+  text-overflow: ellipsis;
+}
+
+.plan-product-choice small {
+  margin-top: 4px;
+  color: #81877f;
+  font-size: 10px;
+}
+
+.subscription-table {
+  min-width: 760px;
+}
+
+.plan-products-cell {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.subscription-status-ativa {
+  color: #356846;
+  background: #e8f1e9;
+}
+
+.subscription-status-pausada {
+  color: #8a642f;
+  background: #f5eddd;
+}
+
+.subscription-status-cancelada {
+  color: #9a4036;
+  background: #f7e9e6;
+}
+
+.subscription-empty-plans {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding-block: 18px;
 }
 
 .form-section {
@@ -358,14 +686,16 @@
 
   .sidebar {
     position: static;
+    display: grid;
     height: auto;
-    flex-direction: row;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     align-items: center;
-    justify-content: space-between;
-    padding: 12px 18px;
+    gap: 5px 8px;
+    padding: 12px 18px 14px;
   }
 
   .brand {
+    grid-column: 1 / -1;
     font-size: 18px;
   }
 
@@ -400,6 +730,10 @@
     gap: 19px;
     padding-block: 23px;
   }
+
+  .subscription-form-section {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 480px) {
@@ -427,6 +761,19 @@
     flex-direction: column;
     gap: 12px;
     padding-block: 17px;
+  }
+
+  .subscription-heading {
+    gap: 16px;
+  }
+
+  .plan-product-list {
+    grid-template-columns: 1fr;
+  }
+
+  .subscription-empty-plans {
+    align-items: center;
+    flex-direction: column;
   }
 
   .form-feedback {

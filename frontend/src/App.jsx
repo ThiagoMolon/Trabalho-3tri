@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import api from './services/api'
+import SubscriptionManager from './SubscriptionManager'
 import './App.scss'
 
 const initialProduct = {
@@ -19,12 +20,61 @@ const initialProduct = {
   active: true,
 }
 
+const categoryLabels = {
+  graos: 'Grãos',
+  moidos: 'Moídos',
+  acessorios: 'Acessórios',
+  kits: 'Kits',
+}
+
+const currencyFormatter = new Intl.NumberFormat('pt-BR', {
+  style: 'currency',
+  currency: 'BRL',
+})
+
 function App() {
   const [product, setProduct] = useState(initialProduct)
   const [submitting, setSubmitting] = useState(false)
   const [feedback, setFeedback] = useState(null)
+  const [view, setView] = useState('create')
+  const [subscriptionTab, setSubscriptionTab] = useState('subscriptions')
+  const [products, setProducts] = useState([])
+  const [loadingProducts, setLoadingProducts] = useState(false)
+  const [productsError, setProductsError] = useState('')
+  const [productsFeedback, setProductsFeedback] = useState('')
+  const [search, setSearch] = useState('')
+  const [editingId, setEditingId] = useState(null)
+  const [deletingId, setDeletingId] = useState(null)
 
   const isCoffee = product.category === 'graos' || product.category === 'moidos'
+  const filteredProducts = products.filter((item) =>
+    `${item.name} ${categoryLabels[item.category] || item.category}`
+      .toLowerCase()
+      .includes(search.trim().toLowerCase()),
+  )
+
+  useEffect(() => {
+    if (view !== 'list') return undefined
+
+    let isCurrent = true
+
+    api.get('/produtos')
+      .then(({ data }) => {
+        if (isCurrent) setProducts(data)
+      })
+      .catch((error) => {
+        if (isCurrent) {
+          setProductsError(error.response?.data?.message || 'Não foi possível carregar os produtos.')
+        }
+      })
+      .finally(() => {
+        if (isCurrent) setLoadingProducts(false)
+      })
+
+    return () => {
+      isCurrent = false
+    }
+  }, [view])
 
   function updateField(event) {
     const { name, value, type, checked } = event.target
@@ -55,6 +105,15 @@ function App() {
     }
 
     try {
+      if (editingId) {
+        await api.put(`/produtos/${editingId}`, payload)
+        setEditingId(null)
+        setProduct(initialProduct)
+        openProducts()
+        setProductsFeedback('Produto atualizado com sucesso.')
+        return
+      }
+
       await api.post('/produtos', payload)
       setProduct(initialProduct)
       setFeedback({ type: 'success', message: 'Produto cadastrado com sucesso.' })
@@ -68,6 +127,60 @@ function App() {
     }
   }
 
+  function startEditing(item) {
+    setEditingId(item.id)
+    setProduct({
+      name: item.name,
+      category: item.category,
+      description: item.description || '',
+      price: String(item.price),
+      weight_grams: item.weight_grams == null ? '' : String(item.weight_grams),
+      image_url: item.image_url || '',
+      origin: item.origin || '',
+      producer: item.producer || '',
+      altitude: item.altitude == null ? '' : String(item.altitude),
+      variety: item.variety || '',
+      score: item.score == null ? '' : String(item.score),
+      sensory_notes: (item.sensory_notes || []).join(', '),
+      stock: String(item.stock),
+      active: item.active,
+    })
+    setFeedback(null)
+    setView('create')
+  }
+
+  function startNewProduct() {
+    setEditingId(null)
+    setProduct(initialProduct)
+    setFeedback(null)
+    setView('create')
+  }
+
+  function openProducts() {
+    if (view === 'list') return
+    setLoadingProducts(true)
+    setProductsError('')
+    setProductsFeedback('')
+    setView('list')
+  }
+
+  async function handleDelete(item) {
+    if (!window.confirm(`Excluir o produto "${item.name}"? Esta ação não pode ser desfeita.`)) return
+
+    setDeletingId(item.id)
+    setProductsError('')
+    setProductsFeedback('')
+    try {
+      await api.delete(`/produtos/${item.id}`)
+      setProducts((current) => current.filter((productItem) => productItem.id !== item.id))
+      setProductsFeedback('Produto excluído com sucesso.')
+    } catch (error) {
+      setProductsError(error.response?.data?.message || 'Não foi possível excluir o produto.')
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
   return (
     <div className="admin-shell">
       <aside className="sidebar">
@@ -76,9 +189,19 @@ function App() {
           <span>origin<span className="brand-light">beans</span></span>
         </a>
         <div className="sidebar-label">CATÁLOGO</div>
-        <div className="nav-item nav-item-active" aria-current="page">
+        <button className={`nav-item ${view === 'create' ? 'nav-item-active' : ''}`} type="button" onClick={startNewProduct} aria-current={view === 'create' ? 'page' : undefined}>
+          <span className="nav-indicator" /> Novo produto
+        </button>
+        <button className={`nav-item ${view === 'list' ? 'nav-item-active' : ''}`} type="button" onClick={openProducts} aria-current={view === 'list' ? 'page' : undefined}>
           <span className="nav-indicator" /> Produtos
-        </div>
+        </button>
+        <div className="sidebar-label sidebar-section-label">ASSINATURAS</div>
+        <button className={`nav-item ${view === 'subscriptions' && subscriptionTab === 'subscriptions' ? 'nav-item-active' : ''}`} type="button" onClick={() => { setSubscriptionTab('subscriptions'); setView('subscriptions') }} aria-current={view === 'subscriptions' && subscriptionTab === 'subscriptions' ? 'page' : undefined}>
+          <span className="nav-indicator" /> Clientes
+        </button>
+        <button className={`nav-item ${view === 'subscriptions' && subscriptionTab === 'plans' ? 'nav-item-active' : ''}`} type="button" onClick={() => { setSubscriptionTab('plans'); setView('subscriptions') }} aria-current={view === 'subscriptions' && subscriptionTab === 'plans' ? 'page' : undefined}>
+          <span className="nav-indicator" /> Planos
+        </button>
         <div className="sidebar-footer">
           <span className="status-dot" /> Painel administrativo
         </div>
@@ -86,21 +209,89 @@ function App() {
 
       <main className="admin-main">
         <header className="topbar">
-          <span>Loja / Produtos</span>
+          <span>Loja / {view === 'subscriptions' ? 'Assinaturas' : view === 'list' ? 'Produtos' : editingId ? 'Editar produto' : 'Novo produto'}</span>
           <span className="topbar-account">Administração</span>
         </header>
 
         <div className="page-content">
-          <div className="page-heading">
-            <div>
-              <p className="eyebrow">CATÁLOGO DA LOJA</p>
-              <h1>Novo produto</h1>
-              <p className="page-description">Preencha os dados para adicionar um item ao catálogo.</p>
-            </div>
-            <span className="required-note"><span>*</span> Campos obrigatórios</span>
-          </div>
+          {view === 'subscriptions' ? (
+            <SubscriptionManager activeTab={subscriptionTab} onTabChange={setSubscriptionTab} />
+          ) : view === 'list' ? (
+            <>
+              <div className="page-heading catalog-heading">
+                <div>
+                  <p className="eyebrow">CATÁLOGO DA LOJA</p>
+                  <h1>Produtos</h1>
+                  <p className="page-description">Consulte e atualize os itens cadastrados.</p>
+                </div>
+                <button className="submit-button new-product-button" type="button" onClick={startNewProduct}>Novo produto</button>
+              </div>
 
-          <form className="product-form" onSubmit={handleSubmit}>
+              <section className="catalog-panel" aria-label="Lista de produtos">
+                <div className="catalog-toolbar">
+                  <label className="search-field">
+                    <span className="visually-hidden">Buscar produto</span>
+                    <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar por nome ou categoria" />
+                  </label>
+                  <span className="product-count">{products.length} {products.length === 1 ? 'produto' : 'produtos'}</span>
+                </div>
+
+                {productsFeedback && <p className="catalog-feedback feedback-success" role="status">{productsFeedback}</p>}
+                {productsError && <p className="catalog-feedback feedback-error" role="alert">{productsError}</p>}
+                {loadingProducts ? (
+                  <p className="catalog-empty">Carregando produtos...</p>
+                ) : filteredProducts.length === 0 ? (
+                  <p className="catalog-empty">{search ? 'Nenhum produto corresponde à busca.' : 'Nenhum produto cadastrado ainda.'}</p>
+                ) : (
+                  <div className="table-scroll">
+                    <table className="product-table">
+                      <thead>
+                        <tr>
+                          <th>Produto</th>
+                          <th>Categoria</th>
+                          <th>Preço</th>
+                          <th>Estoque</th>
+                          <th>Status</th>
+                          <th><span className="visually-hidden">Ações</span></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredProducts.map((item) => (
+                          <tr key={item.id}>
+                            <td className="product-name-cell">
+                              <strong>{item.name}</strong>
+                              <span>#{item.id}</span>
+                            </td>
+                            <td>{categoryLabels[item.category] || item.category}</td>
+                            <td>{currencyFormatter.format(Number(item.price))}</td>
+                            <td>{item.stock}</td>
+                            <td><span className={`status-label ${item.active ? 'status-active' : 'status-inactive'}`}>{item.active ? 'Ativo' : 'Inativo'}</span></td>
+                            <td className="row-actions">
+                              <button className="text-action" type="button" onClick={() => startEditing(item)}>Editar</button>
+                              <button className="text-action text-action-delete" type="button" onClick={() => handleDelete(item)} disabled={deletingId === item.id}>
+                                {deletingId === item.id ? 'Excluindo...' : 'Excluir'}
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </section>
+            </>
+          ) : (
+            <>
+              <div className="page-heading">
+                <div>
+                  <p className="eyebrow">CATÁLOGO DA LOJA</p>
+                  <h1>{editingId ? 'Editar produto' : 'Novo produto'}</h1>
+                  <p className="page-description">{editingId ? 'Atualize os dados deste item do catálogo.' : 'Preencha os dados para adicionar um item ao catálogo.'}</p>
+                </div>
+                <span className="required-note"><span>*</span> Campos obrigatórios</span>
+              </div>
+
+              <form className="product-form" onSubmit={handleSubmit}>
             <section className="form-section">
               <div className="section-heading">
                 <span className="section-number">01</span>
@@ -203,11 +394,14 @@ function App() {
 
             <footer className="form-footer">
               {feedback && <p className={`form-feedback feedback-${feedback.type}`} role="status">{feedback.message}</p>}
+              {editingId && <button className="text-action cancel-edit-button" type="button" onClick={() => { setEditingId(null); setProduct(initialProduct); openProducts() }}>Cancelar edição</button>}
               <button className="submit-button" type="submit" disabled={submitting}>
-                {submitting ? 'Salvando...' : 'Cadastrar produto'}
+                {submitting ? 'Salvando...' : editingId ? 'Salvar alterações' : 'Cadastrar produto'}
               </button>
             </footer>
-          </form>
+              </form>
+            </>
+          )}
         </div>
       </main>
     </div>
