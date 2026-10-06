@@ -145,4 +145,10 @@ vite.config.ts.timestamp-*
 .vscode
 .env
 .claude/
+.cursor/
+.devin/
 .agents/
+prisma.config.ts
+
+docker-compose.override.yml
+docker-compose.yml

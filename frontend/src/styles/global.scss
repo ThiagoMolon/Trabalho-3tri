@@ -2,8 +2,8 @@
 @use './mixins' as *;
 
 :root {
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
+  font: 14px/145% var(--sans);
+  letter-spacing: 0;
   color: var(--text);
   background: var(--bg);
   font-synthesis: none;
@@ -17,46 +17,22 @@
 }
 
 body {
+  min-width: 320px;
+  min-height: 100svh;
   margin: 0;
 }
 
 #root {
-  width: 1126px;
-  max-width: 100%;
+  width: 100%;
   min-height: 100svh;
-  margin: 0 auto;
-  box-sizing: border-box;
-  border-inline: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  text-align: center;
+  margin: 0;
 }
 
 h1,
 h2 {
-  margin: 0 0 8px;
   color: var(--text-h);
   font-family: var(--heading);
   font-weight: 500;
-}
-
-h1 {
-  margin: 32px 0;
-  font-size: 56px;
-
-  @include mobile {
-    margin: 20px 0;
-    font-size: 36px;
-  }
-}
-
-h2 {
-  font-size: 24px;
-  line-height: 118%;
-
-  @include mobile {
-    font-size: 20px;
-  }
 }
 
 p {
