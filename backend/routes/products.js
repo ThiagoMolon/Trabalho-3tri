@@ -78,8 +78,10 @@ function buildProductValues(body) {
   ]
 }
 
-function createProductsRouter(pool) {
+function createProductsRouter(pool, requireAdmin) {
   const router = express.Router()
+
+  router.use(requireAdmin)
 
   router.get('/', async (_req, res) => {
     try {
