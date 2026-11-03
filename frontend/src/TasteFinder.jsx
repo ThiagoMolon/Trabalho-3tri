@@ -32,6 +32,7 @@ function TasteFinder() {
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
+  const [saveStatus, setSaveStatus] = useState('idle')
 
   useEffect(() => {
     let isCurrent = true
@@ -68,10 +69,21 @@ function TasteFinder() {
       const optionIds = questions.map((question) => answers[question.id])
       const { data } = await api.post('/quiz/resultado', { option_ids: optionIds })
       setProfile(data.profile)
+      await saveProfile(data.profile)
     } catch (requestError) {
       setError(requestError.response?.data?.message || 'Não foi possível calcular seu perfil.')
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  async function saveProfile(profileToSave) {
+    setSaveStatus('saving')
+    try {
+      await api.put('/auth/taste-profile', { profile: profileToSave })
+      setSaveStatus('saved')
+    } catch (requestError) {
+      setSaveStatus(requestError.response?.status === 401 ? 'login' : 'error')
     }
   }
 
@@ -80,6 +92,7 @@ function TasteFinder() {
     setCurrentIndex(0)
     setProfile(null)
     setError('')
+    setSaveStatus('idle')
   }
 
   const currentQuestion = questions[currentIndex]
@@ -137,7 +150,20 @@ function TasteFinder() {
                 </div>
               ))}
             </div>
-            <p className="taste-privacy-note">Este resultado é exibido apenas nesta sessão e ainda não fica salvo em uma conta.</p>
+            {saveStatus === 'saved' && <p className="taste-privacy-note taste-save-status" role="status">Seu perfil sensorial foi salvo na sua conta.</p>}
+            {saveStatus === 'saving' && <p className="taste-privacy-note taste-save-status" role="status">Salvando seu perfil na conta...</p>}
+            {saveStatus === 'login' && (
+              <p className="taste-privacy-note taste-save-status">
+                Entre ou crie uma conta para salvar este resultado no seu perfil.{' '}
+                <a href="/login">Entrar</a> · <a href="/cadastro">Criar conta</a>
+              </p>
+            )}
+            {saveStatus === 'error' && (
+              <div className="taste-save-status" role="alert">
+                <p className="taste-privacy-note">Não foi possível salvar o resultado no seu perfil.</p>
+                <button className="taste-back-button taste-save-retry" type="button" onClick={() => saveProfile(profile)}>Tentar novamente</button>
+              </div>
+            )}
             <button className="taste-primary-button" type="button" onClick={restart}>Refazer quiz</button>
           </section>
         ) : (

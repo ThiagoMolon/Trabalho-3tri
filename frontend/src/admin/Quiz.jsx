@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import api from './services/api'
+import api from '../services/api'
 
 const dimensions = [
   { key: 'acidity_weight', label: 'Acidez' },
@@ -134,13 +134,13 @@ function QuizManager() {
 
   return (
     <section className="quiz-admin">
-      <div className="page-heading catalog-heading">
+          <div className="page-heading catalog-heading">
         <div>
           <p className="eyebrow">TASTE FINDER</p>
-          <h1>Perguntas do quiz</h1>
-          <p className="page-description">Crie perguntas e defina como cada resposta compõe o perfil sensorial.</p>
+          <h1>Quiz</h1>
+          <p className="page-description">Gerencie perguntas e pesos sensoriais do Taste Finder.</p>
         </div>
-        <a className="submit-button quiz-preview-link" href="/quiz">Visualizar quiz</a>
+        <a className="submit-button quiz-preview-link" href="/quiz" target="_blank" rel="noreferrer">Visualizar quiz</a>
       </div>
 
       {error && <p className="quiz-feedback feedback-error" role="alert">{error}</p>}

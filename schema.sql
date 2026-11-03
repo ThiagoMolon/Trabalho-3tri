@@ -137,22 +137,3 @@ CREATE INDEX idx_subs_status         ON subscriptions(status);
 CREATE INDEX idx_orders_user         ON orders(user_id);
 CREATE INDEX idx_order_items_order   ON order_items(order_id);
 
--- CONSULTAS ÚTEIS PARA O PAINEL DO LOJISTA ------------------------------
-
--- MRR (assinaturas ativas, normalizado para mensal):
--- SELECT ROUND(SUM(p.price * CASE s.frequency
---          WHEN 'weekly' THEN 4.33 WHEN 'biweekly' THEN 2.17 ELSE 1 END), 2) AS mrr
--- FROM subscriptions s JOIN subscription_plans p ON p.id = s.plan_id
--- WHERE s.status = 'active';
-
--- Moagem necessária (pedidos pagos, ainda não enviados):
--- SELECT oi.grind, SUM(oi.quantity) AS unidades
--- FROM order_items oi JOIN orders o ON o.id = oi.order_id
--- WHERE o.status = 'paid'
--- GROUP BY oi.grind;
-
--- Churn do mês atual:
--- SELECT COUNT(*) FILTER (WHERE canceled_at >= date_trunc('month', NOW())) * 100.0
---        / NULLIF(COUNT(*) FILTER (WHERE started_at < date_trunc('month', NOW())
---            AND (canceled_at IS NULL OR canceled_at >= date_trunc('month', NOW()))), 0) AS churn_pct
--- FROM subscriptions;

@@ -1,6 +1,12 @@
 import { useEffect, useState } from 'react'
 import api from './services/api'
 
+const tasteDimensions = [
+  { key: 'acidity', label: 'Acidez' },
+  { key: 'bitterness', label: 'Amargor' },
+  { key: 'sweetness', label: 'Doçura' },
+]
+
 function AuthPage({ mode }) {
   const isRegistering = mode === 'register'
   const [form, setForm] = useState({ name: '', email: '', phone: '', password: '' })
@@ -185,8 +191,27 @@ function AccountPage() {
               <div><dt>E-mail</dt><dd>{user.email}</dd></div>
               {user.phone && <div><dt>Telefone</dt><dd>{user.phone}</dd></div>}
             </dl>
+            {user.taste_profile && (
+              <section className="account-taste-profile" aria-labelledby="account-taste-title">
+                <p className="eyebrow">TASTE FINDER</p>
+                <h2 id="account-taste-title">Seu perfil de paladar</h2>
+                <div className="taste-profile-bars">
+                  {tasteDimensions.map(({ key, label }) => (
+                    <div className="taste-profile-row" key={key}>
+                      <div className="taste-profile-label">
+                        <span>{label}</span>
+                        <strong>{user.taste_profile[key]}/10</strong>
+                      </div>
+                      <div className="taste-profile-track" role="meter" aria-label={label} aria-valuemin="0" aria-valuemax="10" aria-valuenow={user.taste_profile[key]}>
+                        <span style={{ width: `${user.taste_profile[key] * 10}%` }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
             {error && <p className="auth-feedback feedback-error" role="alert">{error}</p>}
-            <a className="submit-button auth-submit account-quiz-link" href="/quiz">Fazer o Taste Finder</a>
+            <a className="submit-button auth-submit account-quiz-link" href="/quiz">{user.taste_profile ? 'Atualizar meu perfil de paladar' : 'Fazer o Taste Finder'}</a>
             <button className="auth-logout-button" type="button" onClick={logout} disabled={signingOut}>
               {signingOut ? 'Saindo...' : 'Sair da conta'}
             </button>

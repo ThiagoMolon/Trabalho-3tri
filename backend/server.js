@@ -45,6 +45,7 @@ async function ensureUsersTable() {
       created_at TIMESTAMP NOT NULL DEFAULT NOW()
     )
   `)
+  await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS taste_profile JSONB')
 }
 
 async function ensureProductsTable() {

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import api from './services/api'
+import api from '../services/api'
 
 const currencyFormatter = new Intl.NumberFormat('pt-BR', {
   style: 'currency',
@@ -277,7 +277,7 @@ function SubscriptionManager({ activeTab, onTabChange }) {
         </div>
         {!formKind && (
           <button
-            className="submit-button subscription-new-button"
+            className={`submit-button subscription-new-button ${activeTab === 'plans' ? 'submit-button-gold' : ''}`}
             type="button"
             onClick={activeTab === 'plans' ? startNewPlan : startNewSubscription}
             disabled={activeTab === 'subscriptions' && !plans.some((plan) => plan.active)}

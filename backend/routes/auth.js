@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken')
 
 const cookieName = 'origin_beans_session'
 const tokenLifetimeSeconds = 7 * 24 * 60 * 60
+const tasteProfileDimensions = ['acidity', 'bitterness', 'sweetness']
 
 function setSessionCookie(res, token, secure) {
   const secureFlag = secure ? '; Secure' : ''
@@ -76,6 +77,7 @@ function createAuthRouter(pool, secret, secureCookies = false) {
   }
 
   const router = express.Router()
+  const { requireAuth } = createAuthMiddleware(pool, secret, secureCookies)
 
   router.post('/register', async (req, res) => {
     const { name, email, password, phone } = req.body || {}
@@ -155,6 +157,39 @@ function createAuthRouter(pool, secret, secureCookies = false) {
     }
   })
 
+  router.put('/taste-profile', requireAuth, async (req, res) => {
+    const profile = req.body?.profile
+    if (!profile || typeof profile !== 'object' || Array.isArray(profile)
+      || tasteProfileDimensions.some((dimension) => (
+        typeof profile[dimension] !== 'number'
+        || !Number.isFinite(profile[dimension])
+        || profile[dimension] < 0
+        || profile[dimension] > 10
+      ))) {
+      return res.status(400).json({ message: 'Informe um perfil sensorial válido.' })
+    }
+
+    const normalizedProfile = Object.fromEntries(
+      tasteProfileDimensions.map((dimension) => [dimension, Math.round(profile[dimension] * 10) / 10]),
+    )
+
+    try {
+      const result = await pool.query(
+        `UPDATE users SET taste_profile = $1::jsonb
+         WHERE id = $2
+         RETURNING taste_profile`,
+        [JSON.stringify(normalizedProfile), req.user.id],
+      )
+      if (result.rowCount === 0) {
+        return res.status(404).json({ message: 'Esta conta não está mais disponível.' })
+      }
+      return res.json({ taste_profile: result.rows[0].taste_profile })
+    } catch (error) {
+      console.error('Could not update taste profile:', error.message)
+      return res.status(500).json({ message: 'Não foi possível salvar seu perfil sensorial.' })
+    }
+  })
+
   router.get('/me', async (req, res) => {
     const token = readSessionToken(req)
     if (!token) return res.status(401).json({ message: 'Entre na sua conta para continuar.' })
@@ -169,7 +204,7 @@ function createAuthRouter(pool, secret, secureCookies = false) {
 
     try {
       const result = await pool.query(
-        'SELECT id, name, email, phone, role, created_at FROM users WHERE id = $1',
+        'SELECT id, name, email, phone, role, taste_profile, created_at FROM users WHERE id = $1',
         [Number(payload.sub)],
       )
       if (result.rowCount === 0) {
