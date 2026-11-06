@@ -145,6 +145,7 @@ function PasswordResetRequestPage() {
       setNotice(data.message)
     } catch (requestError) {
       setError(requestError.response?.data?.message || 'Não foi possível solicitar a redefinição.')
+      console.error(requestError)
     } finally {
       setSubmitting(false)
     }

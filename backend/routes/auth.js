@@ -1,3 +1,6 @@
+const Resend = require("resend").default;
+const resend = new Resend(process.env.RESEND_API_KEY);
+
 const express = require('express')
 const bcrypt = require('bcryptjs')
 const jwt = require('jsonwebtoken')
@@ -94,13 +97,20 @@ function createPasswordResetMailer() {
     return null
   }
 
-  return nodemailer.createTransport({
-    host,
-    port,
-    secure: process.env.SMTP_SECURE === 'true',
-    auth: { user, pass },
-  })
+async function sendPasswordResetEmail(toEmail, resetLink) {
+  try {
+    await resend.emails.send({
+      from: "onboarding@resend.dev",
+      to: toEmail,
+      subject: "Redefinição de senha",
+      html: `<p>Clique para redefinir sua senha: <a href="${resetLink}">${resetLink}</a></p>`,
+    });
+  } catch (err) {
+    console.error("ERRO AO ENVIAR RESET:", err);
+    throw err;
+  }
 }
+
 
 function createAuthMiddleware(pool, secret, secureCookies = false) {
   async function requireAuth(req, res, next) {
@@ -223,7 +233,8 @@ function createAuthRouter(pool, secret, secureCookies = false) {
         }
       }
       console.error('Could not send password reset email:', error.message)
-      return res.status(500).json({ message: 'Não foi possível enviar as instruções de redefinição.' })
+      return res.status(500).json({ message: 'Não foi possível enviar as instruções de redefinição.' }.console.error(err)
+      )
     }
   })
 

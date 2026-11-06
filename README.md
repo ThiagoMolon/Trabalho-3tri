@@ -23,3 +23,7 @@
 - Após a promoção, saia e entre novamente para que o login redirecione ao painel. Clientes não têm acesso ao painel nem às rotas administrativas de produtos, quiz, planos e assinaturas.
 
 Para rodar localmente, inicie a API na pasta `backend` (`npm run dev`) com `DATABASE_URL` e `AUTH_TOKEN_SECRET` configurados e o frontend na pasta `frontend` (`npm run dev`). O frontend local usa `http://localhost:3000` por padrão; no Docker Compose, usa o proxy da mesma origem, compatível com acesso por Dev Tunnel HTTPS. Configure `VITE_API_URL` apenas se a API estiver em outro endereço.
+
+## Deploy do frontend no Cloudflare Pages
+
+Com Docker Compose e Wrangler CLI instalados e autenticados, execute `./deploy.sh` na raiz do projeto. O script inicia os serviços com `docker compose up -d`; se esse comando falhar, o build e o deploy não serão executados. Em seguida, compila o frontend com `VITE_API_URL=https://trabalho-3tri.origin-beans01.workers.dev` e publica `frontend/dist` no projeto Pages `trabalho-3tri`.
