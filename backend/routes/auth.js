@@ -1,9 +1,13 @@
 const express = require('express')
 const bcrypt = require('bcryptjs')
 const jwt = require('jsonwebtoken')
+const crypto = require('node:crypto')
+const net = require('node:net')
+const nodemailer = require('nodemailer')
 
 const cookieName = 'origin_beans_session'
 const tokenLifetimeSeconds = 7 * 24 * 60 * 60
+const passwordResetLifetimeMs = 30 * 60 * 1000
 const tasteProfileDimensions = ['acidity', 'bitterness', 'sweetness']
 
 function setSessionCookie(res, token, secure) {
@@ -31,6 +35,73 @@ function readSessionToken(req) {
   return sessionCookie ? sessionCookie.slice(cookieName.length + 1) : null
 }
 
+function escapeHtml(value) {
+  return value.replace(/[&<>"']/g, (character) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  })[character])
+}
+
+function getPasswordResetFrontendUrl(req) {
+  const configuredUrl = process.env.FRONTEND_URL?.trim()
+
+  try {
+    const requestOrigin = new URL(req.get('origin'))
+    const hostname = requestOrigin.hostname
+    const octets = hostname.split('.').map(Number)
+    const isPrivateIpv4 = net.isIPv4(hostname) && (
+      octets[0] === 10
+      || (octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31)
+      || (octets[0] === 192 && octets[1] === 168)
+    )
+    const isDevTunnel = requestOrigin.protocol === 'https:'
+      && hostname.endsWith('.devtunnels.ms')
+    let configuredForLocalhost = false
+    if (configuredUrl) {
+      try {
+        const configuredHostname = new URL(configuredUrl).hostname
+        configuredForLocalhost = configuredHostname === 'localhost'
+          || configuredHostname.endsWith('.localhost')
+      } catch {
+        // The configured URL is used below and will report an invalid URL.
+      }
+    }
+    if ((isPrivateIpv4 && (!configuredUrl || configuredForLocalhost))
+      || (isDevTunnel && !configuredUrl)) {
+      return requestOrigin.origin
+    }
+  } catch {
+    // Missing or invalid origins use the local development default.
+  }
+
+  return configuredUrl || 'http://localhost:5173'
+}
+
+function createPasswordResetMailer() {
+  const host = process.env.SMTP_HOST?.trim()
+  const from = process.env.SMTP_FROM?.trim()
+  const pass = process.env.SMTP_PASS?.trim()
+  const configuredUser = process.env.SMTP_USER?.trim()
+  const port = Number(process.env.SMTP_PORT || '587')
+  // Gmail (and most SMTP providers) authenticate with an email address.
+  // Fall back to SMTP_FROM when SMTP_USER looks like a display name.
+  const user = configuredUser && configuredUser.includes('@') ? configuredUser : from
+  if (!host || !user || !pass || !from
+    || !Number.isInteger(port) || port < 1 || port > 65535) {
+    return null
+  }
+
+  return nodemailer.createTransport({
+    host,
+    port,
+    secure: process.env.SMTP_SECURE === 'true',
+    auth: { user, pass },
+  })
+}
+
 function createAuthMiddleware(pool, secret, secureCookies = false) {
   async function requireAuth(req, res, next) {
     const token = readSessionToken(req)
@@ -46,12 +117,16 @@ function createAuthMiddleware(pool, secret, secureCookies = false) {
 
     try {
       const result = await pool.query(
-        'SELECT id, name, email, phone, role FROM users WHERE id = $1',
+        'SELECT id, name, email, phone, role, auth_version FROM users WHERE id = $1',
         [Number(payload.sub)],
       )
       if (result.rowCount === 0) {
         clearSessionCookie(res, secureCookies)
         return res.status(401).json({ message: 'Esta conta não está mais disponível.' })
+      }
+      if (Number(payload.ver || 0) !== result.rows[0].auth_version) {
+        clearSessionCookie(res, secureCookies)
+        return res.status(401).json({ message: 'Sua sessão expirou. Entre novamente.' })
       }
       req.user = result.rows[0]
       return next()
@@ -78,6 +153,131 @@ function createAuthRouter(pool, secret, secureCookies = false) {
 
   const router = express.Router()
   const { requireAuth } = createAuthMiddleware(pool, secret, secureCookies)
+  const resetMailer = createPasswordResetMailer()
+
+  router.post('/password-reset/request', async (req, res) => {
+    const { email } = req.body || {}
+    if (typeof email !== 'string' || email.trim().length > 255
+      || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      return res.status(400).json({ message: 'Informe um e-mail válido.' })
+    }
+    if (!resetMailer) {
+      return res.status(503).json({ message: 'O envio de e-mails ainda não está configurado.' })
+    }
+
+    let tokenHash
+    try {
+      const userResult = await pool.query(
+        'SELECT id, name, email FROM users WHERE LOWER(email) = $1',
+        [email.trim().toLowerCase()],
+      )
+      const user = userResult.rows[0]
+      if (!user) {
+        return res.json({
+          message: 'Se o e-mail estiver cadastrado, você receberá instruções para redefinir sua senha.',
+        })
+      }
+
+      const recentRequest = await pool.query(
+        `SELECT EXISTS (
+           SELECT 1 FROM password_reset_tokens
+           WHERE user_id = $1 AND created_at > NOW() - INTERVAL '1 minute'
+         ) AS requested_recently`,
+        [user.id],
+      )
+      if (recentRequest.rows[0].requested_recently) {
+        return res.json({
+          message: 'Se o e-mail estiver cadastrado, você receberá instruções para redefinir sua senha.',
+        })
+      }
+
+      const token = crypto.randomBytes(32).toString('hex')
+      tokenHash = crypto.createHash('sha256').update(token).digest('hex')
+      await pool.query('DELETE FROM password_reset_tokens WHERE expires_at <= NOW()')
+      await pool.query('DELETE FROM password_reset_tokens WHERE user_id = $1', [user.id])
+      await pool.query(
+        `INSERT INTO password_reset_tokens (user_id, token_hash, expires_at)
+         VALUES ($1, $2, $3)`,
+        [user.id, tokenHash, new Date(Date.now() + passwordResetLifetimeMs)],
+      )
+
+      const resetUrl = new URL('/redefinir-senha', getPasswordResetFrontendUrl(req))
+      resetUrl.searchParams.set('token', token)
+      const escapedName = escapeHtml(user.name)
+      await resetMailer.sendMail({
+        from: process.env.SMTP_FROM,
+        to: user.email,
+        subject: 'Redefina sua senha | Origin & Beans',
+        text: `Olá, ${user.name}.\n\nUse este link para redefinir sua senha (válido por 30 minutos):\n${resetUrl}\n\nSe você não solicitou a redefinição, ignore este e-mail.`,
+        html: `<p>Olá, ${escapedName}.</p><p>Use o link abaixo para redefinir sua senha. Ele é válido por 30 minutos e pode ser usado uma única vez.</p><p><a href="${resetUrl}">Redefinir minha senha</a></p><p>Se você não solicitou a redefinição, ignore este e-mail.</p>`,
+      })
+      return res.json({
+        message: 'Se o e-mail estiver cadastrado, você receberá instruções para redefinir sua senha.',
+      })
+    } catch (error) {
+      if (tokenHash) {
+        try {
+          await pool.query('DELETE FROM password_reset_tokens WHERE token_hash = $1', [tokenHash])
+        } catch (cleanupError) {
+          console.error('Could not remove unsent password reset token:', cleanupError.message)
+        }
+      }
+      console.error('Could not send password reset email:', error.message)
+      return res.status(500).json({ message: 'Não foi possível enviar as instruções de redefinição.' })
+    }
+  })
+
+  router.post('/password-reset/confirm', async (req, res) => {
+    const { token, password } = req.body || {}
+    if (typeof token !== 'string' || !/^[a-f0-9]{64}$/.test(token)) {
+      return res.status(400).json({ message: 'Este link de redefinição é inválido ou expirou.' })
+    }
+    if (typeof password !== 'string' || password.length < 8
+      || Buffer.byteLength(password, 'utf8') > 72) {
+      return res.status(400).json({ message: 'A senha deve ter entre 8 e 72 bytes.' })
+    }
+
+    let client
+    try {
+      client = await pool.connect()
+      await client.query('BEGIN')
+      const tokenHash = crypto.createHash('sha256').update(token).digest('hex')
+      const resetResult = await client.query(
+        `SELECT user_id FROM password_reset_tokens
+         WHERE token_hash = $1 AND expires_at > NOW()
+         FOR UPDATE`,
+        [tokenHash],
+      )
+      if (resetResult.rowCount === 0) {
+        await client.query('ROLLBACK')
+        return res.status(400).json({ message: 'Este link de redefinição é inválido ou expirou.' })
+      }
+
+      const passwordHash = await bcrypt.hash(password, 12)
+      await client.query(
+        'UPDATE users SET password_hash = $1, auth_version = auth_version + 1 WHERE id = $2',
+        [passwordHash, resetResult.rows[0].user_id],
+      )
+      await client.query(
+        'DELETE FROM password_reset_tokens WHERE user_id = $1',
+        [resetResult.rows[0].user_id],
+      )
+      await client.query('COMMIT')
+      return res.json({ message: 'Senha redefinida com sucesso. Você já pode entrar.' })
+    } catch (error) {
+      if (client) {
+        try {
+          await client.query('ROLLBACK')
+        } catch (rollbackError) {
+          console.error('Could not roll back password reset:', rollbackError.message)
+        }
+      }
+      console.error('Could not reset user password:', error.message)
+      return res.status(500).json({ message: 'Não foi possível redefinir sua senha.' })
+    } finally {
+      client?.release()
+    }
+  })
 
   router.post('/register', async (req, res) => {
     const { name, email, password, phone } = req.body || {}
@@ -103,11 +303,15 @@ function createAuthRouter(pool, secret, secureCookies = false) {
       const result = await pool.query(
         `INSERT INTO users (name, email, password_hash, phone)
          VALUES ($1, $2, $3, $4)
-         RETURNING id, name, email, phone, role`,
+         RETURNING id, name, email, phone, role, auth_version`,
         [name.trim(), normalizedEmail, passwordHash, phone?.trim() || null],
       )
-      const user = result.rows[0]
-      const token = jwt.sign({ sub: String(user.id) }, secret, { expiresIn: tokenLifetimeSeconds })
+      const { auth_version: authVersion, ...user } = result.rows[0]
+      const token = jwt.sign(
+        { sub: String(user.id), ver: authVersion },
+        secret,
+        { expiresIn: tokenLifetimeSeconds },
+      )
       setSessionCookie(res, token, secureCookies)
       return res.status(201).json({ user })
     } catch (error) {
@@ -131,7 +335,7 @@ function createAuthRouter(pool, secret, secureCookies = false) {
 
     try {
       const result = await pool.query(
-        'SELECT id, name, email, phone, role, password_hash FROM users WHERE LOWER(email) = $1',
+        'SELECT id, name, email, phone, role, auth_version, password_hash FROM users WHERE LOWER(email) = $1',
         [email.trim().toLowerCase()],
       )
       const user = result.rows[0]
@@ -140,7 +344,11 @@ function createAuthRouter(pool, secret, secureCookies = false) {
         return res.status(401).json({ message: 'E-mail ou senha incorretos.' })
       }
 
-      const token = jwt.sign({ sub: String(user.id) }, secret, { expiresIn: tokenLifetimeSeconds })
+      const token = jwt.sign(
+        { sub: String(user.id), ver: user.auth_version },
+        secret,
+        { expiresIn: tokenLifetimeSeconds },
+      )
       setSessionCookie(res, token, secureCookies)
       return res.json({
         user: {
@@ -204,14 +412,20 @@ function createAuthRouter(pool, secret, secureCookies = false) {
 
     try {
       const result = await pool.query(
-        'SELECT id, name, email, phone, role, taste_profile, created_at FROM users WHERE id = $1',
+        'SELECT id, name, email, phone, role, auth_version, taste_profile, created_at FROM users WHERE id = $1',
         [Number(payload.sub)],
       )
       if (result.rowCount === 0) {
         clearSessionCookie(res, secureCookies)
         return res.status(401).json({ message: 'Esta conta não está mais disponível.' })
       }
-      return res.json({ user: result.rows[0] })
+      if (Number(payload.ver || 0) !== result.rows[0].auth_version) {
+        clearSessionCookie(res, secureCookies)
+        return res.status(401).json({ message: 'Sua sessão expirou. Entre novamente.' })
+      }
+      const user = { ...result.rows[0] }
+      delete user.auth_version
+      return res.json({ user })
     } catch (error) {
       console.error('Could not load authenticated user:', error.message)
       return res.status(500).json({ message: 'Não foi possível carregar sua conta.' })

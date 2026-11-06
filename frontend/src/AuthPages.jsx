@@ -105,6 +105,9 @@ function AuthPage({ mode }) {
             />
             {isRegistering && <small>Use pelo menos 8 caracteres.</small>}
           </label>
+          {!isRegistering && (
+            <p className="auth-forgot-link"><a href="/esqueci-senha">Esqueceu sua senha?</a></p>
+          )}
 
           {error && <p className="auth-feedback feedback-error" role="alert">{error}</p>}
           <button className="submit-button auth-submit" type="submit" disabled={submitting}>
@@ -122,6 +125,130 @@ function AuthPage({ mode }) {
       </section>
 
       <a className="auth-back-link" href="/quiz">Conheça seu perfil de café →</a>
+    </main>
+  )
+}
+
+function PasswordResetRequestPage() {
+  const [email, setEmail] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
+
+  async function handleSubmit(event) {
+    event.preventDefault()
+    setSubmitting(true)
+    setError('')
+    setNotice('')
+    try {
+      const { data } = await api.post('/auth/password-reset/request', { email })
+      setNotice(data.message)
+    } catch (requestError) {
+      setError(requestError.response?.data?.message || 'Não foi possível solicitar a redefinição.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <main className="auth-page">
+      <a className="auth-brand" href="/" aria-label="Origin Beans, início">
+        <span className="taste-brand-mark">OB</span>
+        <span>origin<span>beans</span></span>
+      </a>
+      <section className="auth-card">
+        <p className="eyebrow">ORIGIN &amp; BEANS</p>
+        <h1>Redefinir senha</h1>
+        <p className="auth-description">Informe seu e-mail e enviaremos um link para criar uma nova senha.</p>
+        <form className="auth-form" onSubmit={handleSubmit}>
+          <label className="field">
+            <span>E-mail <b>*</b></span>
+            <input
+              name="email"
+              type="email"
+              autoComplete="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              maxLength="255"
+              required
+            />
+          </label>
+          {error && <p className="auth-feedback feedback-error" role="alert">{error}</p>}
+          {notice && <p className="auth-feedback feedback-success" role="status">{notice}</p>}
+          <button className="submit-button auth-submit" type="submit" disabled={submitting}>
+            {submitting ? 'Enviando...' : 'Enviar link de redefinição'}
+          </button>
+        </form>
+        <p className="auth-switch"><a href="/login">Voltar ao login</a></p>
+      </section>
+    </main>
+  )
+}
+
+function PasswordResetPage() {
+  const token = new URLSearchParams(window.location.search).get('token') || ''
+  const [password, setPassword] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
+
+  async function handleSubmit(event) {
+    event.preventDefault()
+    setSubmitting(true)
+    setError('')
+    setNotice('')
+    try {
+      const { data } = await api.post('/auth/password-reset/confirm', { token, password })
+      setNotice(data.message)
+    } catch (requestError) {
+      setError(requestError.response?.data?.message || 'Não foi possível redefinir sua senha.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <main className="auth-page">
+      <a className="auth-brand" href="/" aria-label="Origin Beans, início">
+        <span className="taste-brand-mark">OB</span>
+        <span>origin<span>beans</span></span>
+      </a>
+      <section className="auth-card">
+        <p className="eyebrow">ORIGIN &amp; BEANS</p>
+        <h1>Crie uma nova senha</h1>
+        <p className="auth-description">Escolha uma senha com pelo menos 8 caracteres.</p>
+        {token ? (
+          <form className="auth-form" onSubmit={handleSubmit}>
+            <label className="field">
+              <span>Nova senha <b>*</b></span>
+              <input
+                name="password"
+                type="password"
+                autoComplete="new-password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                minLength="8"
+                maxLength="72"
+                required
+              />
+            </label>
+            {error && <p className="auth-feedback feedback-error" role="alert">{error}</p>}
+            {notice && <p className="auth-feedback feedback-success" role="status">{notice}</p>}
+            {notice ? (
+              <a className="submit-button auth-submit" href="/login">Ir para o login</a>
+            ) : (
+              <button className="submit-button auth-submit" type="submit" disabled={submitting}>
+                {submitting ? 'Salvando...' : 'Salvar nova senha'}
+              </button>
+            )}
+          </form>
+        ) : (
+          <>
+            <p className="auth-feedback feedback-error" role="alert">Este link de redefinição é inválido ou expirou.</p>
+            <a className="submit-button auth-submit" href="/esqueci-senha">Solicitar outro link</a>
+          </>
+        )}
+      </section>
     </main>
   )
 }
@@ -225,4 +352,5 @@ function AccountPage() {
 }
 
 export { AccountPage }
+export { PasswordResetPage, PasswordResetRequestPage }
 export default AuthPage

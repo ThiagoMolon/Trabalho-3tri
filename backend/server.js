@@ -14,11 +14,29 @@ const authSecret = process.env.AUTH_TOKEN_SECRET
 const secureCookies = process.env.NODE_ENV === 'production'
 const frontendOrigin = process.env.FRONTEND_URL || 'http://localhost:5173'
 
+function isAllowedCorsOrigin(origin) {
+  if (!origin) return true
+  if (origin === frontendOrigin) return true
+  try {
+    const { hostname } = new URL(origin)
+    return hostname === 'localhost'
+      || hostname.endsWith('.localhost')
+      || hostname.endsWith('.devtunnels.ms')
+  } catch {
+    return false
+  }
+}
+
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL
 })
 
-app.use(cors({ origin: frontendOrigin, credentials: true }))
+app.use(cors({
+  origin(origin, callback) {
+    callback(null, isAllowedCorsOrigin(origin) ? origin || true : false)
+  },
+  credentials: true,
+}))
 app.use(express.json())
 if (!authSecret || authSecret.length < 32) {
   throw new Error('Configure AUTH_TOKEN_SECRET com pelo menos 32 caracteres.')
@@ -46,6 +64,20 @@ async function ensureUsersTable() {
     )
   `)
   await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS taste_profile JSONB')
+  await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_version INTEGER NOT NULL DEFAULT 0')
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS password_reset_tokens (
+      id BIGSERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      token_hash CHAR(64) NOT NULL UNIQUE,
+      expires_at TIMESTAMPTZ NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `)
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS password_reset_tokens_user_created_idx
+    ON password_reset_tokens (user_id, created_at)
+  `)
 }
 
 async function ensureProductsTable() {

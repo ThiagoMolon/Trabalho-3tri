@@ -3,7 +3,7 @@ import api from './services/api'
 import SubscriptionManager from './admin/Subscription'
 import QuizManager from './admin/Quiz'
 import TasteFinder from './TasteFinder'
-import AuthPage, { AccountPage } from './AuthPages'
+import AuthPage, { AccountPage, PasswordResetPage, PasswordResetRequestPage } from './AuthPages'
 import Dashboard from './admin/Dashboard'
 import MrrChurn from './admin/MrrChurn'
 import Subscribers from './admin/Subscribers'
@@ -294,6 +294,8 @@ function App() {
   if (path === '/login') return <AuthPage mode="login" />
   if (path === '/cadastro') return <AuthPage mode="register" />
   if (path === '/conta') return <AccountPage />
+  if (path === '/esqueci-senha') return <PasswordResetRequestPage />
+  if (path === '/redefinir-senha') return <PasswordResetPage />
   return <AdminGate />
 }
 
