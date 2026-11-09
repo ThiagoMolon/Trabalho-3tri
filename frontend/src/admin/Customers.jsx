@@ -1,4 +1,5 @@
-import { PageHeading, ExportButton, formatDate } from './shared'
+import { PageHeading, ExportButton } from './shared'
+import { formatDate } from './formatters'
 import { customers } from './mockData'
 
 function Customers() {

@@ -3,7 +3,7 @@ const bcrypt = require('bcryptjs')
 const jwt = require('jsonwebtoken')
 const crypto = require('node:crypto')
 const net = require('node:net')
-const nodemailer = require('nodemailer')
+const { Resend } = require('resend')
 
 const cookieName = 'origin_beans_session'
 const tokenLifetimeSeconds = 7 * 24 * 60 * 60
@@ -81,25 +81,17 @@ function getPasswordResetFrontendUrl(req) {
 }
 
 function createPasswordResetMailer() {
-  const host = process.env.SMTP_HOST?.trim()
-  const from = process.env.SMTP_FROM?.trim()
-  const pass = process.env.SMTP_PASS?.trim()
-  const configuredUser = process.env.SMTP_USER?.trim()
-  const port = Number(process.env.SMTP_PORT || '587')
-  // Gmail (and most SMTP providers) authenticate with an email address.
-  // Fall back to SMTP_FROM when SMTP_USER looks like a display name.
-  const user = configuredUser && configuredUser.includes('@') ? configuredUser : from
-  if (!host || !user || !pass || !from
-    || !Number.isInteger(port) || port < 1 || port > 65535) {
-    return null
-  }
+  const apiKey = process.env.RESEND_API_KEY?.trim()
+  const from = process.env.RESEND_FROM?.trim()
+  if (!apiKey || !from) return null
 
-  return nodemailer.createTransport({
-    host,
-    port,
-    secure: process.env.SMTP_SECURE === 'true',
-    auth: { user, pass },
-  })
+  const resend = new Resend(apiKey)
+  return {
+    async sendMail({ to, subject, text, html }) {
+      const { error } = await resend.emails.send({ from, to, subject, text, html })
+      if (error) throw new Error(`Resend request failed: ${error.message}`)
+    },
+  }
 }
 
 function createAuthMiddleware(pool, secret, secureCookies = false) {

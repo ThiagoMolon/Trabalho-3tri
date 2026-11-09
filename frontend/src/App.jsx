@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react'
 import api from './services/api'
 import SubscriptionManager from './admin/Subscription'
 import QuizManager from './admin/Quiz'
-import TasteFinder from './TasteFinder'
-import AuthPage, { AccountPage, PasswordResetPage, PasswordResetRequestPage } from './AuthPages'
+import TasteFinder from './client/TasteFinder'
+import AuthPage, { AccountPage, PasswordResetPage, PasswordResetRequestPage } from './client/AuthPages'
 import Dashboard from './admin/Dashboard'
 import MrrChurn from './admin/MrrChurn'
 import Subscribers from './admin/Subscribers'
@@ -13,7 +13,9 @@ import RoastBatches from './admin/RoastBatches'
 import Stock from './admin/Stock'
 import Settings from './admin/Settings'
 import Catalog from './admin/Catalog'
-import ProductForm, { initialProduct, productToForm } from './admin/ProductForm'
+import ProductForm from './admin/ProductForm'
+import { initialProduct, productToForm } from './admin/ProductForm.utils'
+import { CartPage, ProductDetails, Storefront, SubscriptionPlans } from './client/Storefront'
 import './App.scss'
 
 const navSections = [
@@ -290,6 +292,11 @@ function AdminGate() {
 
 function App() {
   const path = window.location.pathname.replace(/\/+$/, '') || '/'
+  const productMatch = path.match(/^\/produto\/([^/]+)$/)
+  if (path === '/loja') return <Storefront />
+  if (productMatch) return <ProductDetails productId={productMatch[1]} />
+  if (path === '/clube') return <SubscriptionPlans />
+  if (path === '/carrinho') return <CartPage />
   if (path === '/quiz') return <TasteFinder />
   if (path === '/login') return <AuthPage mode="login" />
   if (path === '/cadastro') return <AuthPage mode="register" />

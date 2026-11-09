@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { MetricCards, currencyFormatter } from './shared'
+import { MetricCards } from './shared'
+import { currencyFormatter } from './formatters'
 import { dashboardMetrics } from './mockData'
 
 function Dashboard() {

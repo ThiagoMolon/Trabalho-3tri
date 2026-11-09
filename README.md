@@ -1,12 +1,19 @@
 # Trabalho-3tri
 
+## Loja pública
+
+- Catálogo: `/loja`; detalhes de cada item: `/produto/:id`.
+- Planos de assinatura: `/clube`; Taste Finder: `/quiz`; carrinho local: `/carrinho`.
+- As páginas públicas leem apenas produtos e planos ativos pelas rotas `/vitrine/produtos` e `/vitrine/planos`. O gerenciamento continua restrito às rotas administrativas existentes.
+- O carrinho é armazenado no navegador. Como o projeto ainda não tem fluxo de pedidos ou integração de pagamento para clientes, não há checkout nem contratação online.
+
 ## Taste Finder
 
 - O quiz público fica disponível em `/quiz`.
 - No painel administrativo (`/`), abra **Taste Finder → Quiz** para cadastrar perguntas, respostas e pesos sensoriais.
 - Os pesos de acidez, amargor e doçura vão de 0 a 10. O resultado é a média das respostas escolhidas.
 - O backend cria as tabelas do quiz ao iniciar e insere três perguntas iniciais somente quando ainda não há perguntas cadastradas.
-- O resultado do quiz é exibido na sessão e ainda não é salvo em `users.taste_profile`.
+- O resultado é exibido ao final do quiz e salvo em `users.taste_profile` quando a pessoa está autenticada. Sem login, o perfil continua visível, mas não é salvo.
 - O painel e as rotas de gerenciamento exigem uma sessão administrativa.
 
 ## Cadastro e login
@@ -22,8 +29,8 @@
 - Depois de cadastrar uma conta normal, promova-a para administradora com `cd backend && npm run promote-admin -- email@exemplo.com`. O comando só altera uma conta existente; novos cadastros sempre recebem a role `customer`.
 - Após a promoção, saia e entre novamente para que o login redirecione ao painel. Clientes não têm acesso ao painel nem às rotas administrativas de produtos, quiz, planos e assinaturas.
 
-Para rodar localmente, inicie a API na pasta `backend` (`npm run dev`) com `DATABASE_URL` e `AUTH_TOKEN_SECRET` configurados e o frontend na pasta `frontend` (`npm run dev`). O frontend local usa `http://localhost:3000` por padrão; no Docker Compose, usa o proxy da mesma origem, compatível com acesso por Dev Tunnel HTTPS. Configure `VITE_API_URL` apenas se a API estiver em outro endereço.
+Para rodar localmente, inicie a API na pasta `backend` (`npm run dev`) com `DATABASE_URL` e `AUTH_TOKEN_SECRET` configurados e o frontend na pasta `frontend` (`npm run dev`). Sem `VITE_API_URL`, o frontend usa a mesma origem; o Vite encaminha as chamadas para a API local. No Docker Compose, o proxy também usa a mesma origem, compatível com acesso por Dev Tunnel HTTPS. Configure `VITE_API_URL` quando o frontend e a API estiverem em endereços diferentes.
 
 ## Deploy do frontend no Cloudflare Pages
 
-Com Docker Compose e Wrangler CLI instalados e autenticados, execute `./deploy.sh` na raiz do projeto. O script inicia os serviços com `docker compose up -d`; se esse comando falhar, o build e o deploy não serão executados. Em seguida, compila o frontend com `VITE_API_URL=https://trabalho-3tri.origin-beans01.workers.dev` e publica `frontend/dist` no projeto Pages `trabalho-3tri`.
+Com `npm` e Wrangler CLI instalados e autenticados, execute `./deploy.sh` na raiz do projeto. O script compila o frontend com `https://trabalho-3tri.onrender.com` como API e publica `frontend/dist` no Cloudflare Pages `trabalho-3tri`. Se a API mudar, informe outra URL com `VITE_API_URL=https://sua-api.exemplo.com ./deploy.sh`. O script para imediatamente se o build falhar, sem publicar arquivos antigos.

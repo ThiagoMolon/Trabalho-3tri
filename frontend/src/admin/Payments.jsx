@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
-import { MetricCards, PageHeading, ExportButton, StatusBadge, formatDate, currencyFormatter } from './shared'
+import { MetricCards, PageHeading, ExportButton, StatusBadge } from './shared'
+import { formatDate, currencyFormatter } from './formatters'
 import { payments } from './mockData'
 
 const tabs = [

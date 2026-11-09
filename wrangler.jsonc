@@ -1,11 +1,13 @@
 {
+  "name": "originbeans",
+  "pages_build_output_dir": "frontend/dist",
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "rabalho-3tri",
+  "name": "trabalho-3tri",
   "compatibility_date": "2026-11-04",
   "observability": {
     "enabled": true
   },
-  "assets": {
-    "directory": "frontend"
-  }
+    
+  "pages_build_output_dir": "frontend/dist"
+
 }

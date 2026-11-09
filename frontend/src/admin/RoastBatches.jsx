@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { PageHeading, StatusBadge, formatDate } from './shared'
+import { PageHeading, StatusBadge } from './shared'
+import { formatDate } from './formatters'
 import { roastBatches as initialBatches } from './mockData'
 
 const statusLabels = {

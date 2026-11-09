@@ -13,6 +13,7 @@ export default defineConfig({
     allowedHosts: ['.devtunnels.ms', '.brs.devtunnels.ms'],
     proxy: {
       '/auth': { target: apiProxyTarget, changeOrigin: true },
+      '/vitrine': { target: apiProxyTarget, changeOrigin: true },
       '/produtos': { target: apiProxyTarget, changeOrigin: true },
       '^/quiz/(perguntas|resultado|admin)(/|$)': { target: apiProxyTarget, changeOrigin: true },
       '/planos': { target: apiProxyTarget, changeOrigin: true },

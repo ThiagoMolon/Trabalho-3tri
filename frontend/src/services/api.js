@@ -4,7 +4,7 @@ import axios from 'axios'
 // Set VITE_API_URL only when the API is on a different public origin.
 const configuredApiUrl = import.meta.env.VITE_API_URL
 const api = axios.create({
-  baseURL: configuredApiUrl === undefined ? 'http://localhost:3000' : configuredApiUrl,
+  baseURL: configuredApiUrl || '',
   withCredentials: true,
 })
 

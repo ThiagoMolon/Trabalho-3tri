@@ -1,4 +1,5 @@
-import { MetricCards, PageHeading, ExportButton, StatusBadge, formatDate } from './shared'
+import { MetricCards, PageHeading, ExportButton, StatusBadge } from './shared'
+import { formatDate } from './formatters'
 import { subscribers } from './mockData'
 
 const frequencyLabels = {

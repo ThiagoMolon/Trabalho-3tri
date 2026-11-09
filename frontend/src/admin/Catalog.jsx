@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import api from '../services/api'
-import { currencyFormatter } from './shared'
+import { currencyFormatter } from './formatters'
 
 const tabs = [
   { id: 'todos', label: 'Todos' },
@@ -42,20 +42,22 @@ function Catalog({ onNewProduct, onEditProduct, onOpenSubscriptions }) {
   const [deletingKey, setDeletingKey] = useState('')
 
   async function loadCatalog() {
-    const [productsResponse, plansResponse, subscriptionsResponse] = await Promise.all([
+    return Promise.all([
       api.get('/produtos'),
       api.get('/planos'),
       api.get('/assinaturas'),
     ])
-    setProducts(productsResponse.data)
-    setPlans(plansResponse.data)
-    setSubscriptions(subscriptionsResponse.data)
   }
 
   useEffect(() => {
     let isCurrent = true
-    setLoading(true)
     loadCatalog()
+      .then(([productsResponse, plansResponse, subscriptionsResponse]) => {
+        if (!isCurrent) return
+        setProducts(productsResponse.data)
+        setPlans(plansResponse.data)
+        setSubscriptions(subscriptionsResponse.data)
+      })
       .catch((requestError) => {
         if (isCurrent) {
           setError(requestError.response?.data?.message || 'Não foi possível carregar o catálogo.')

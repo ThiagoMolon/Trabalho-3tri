@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import api from './services/api'
+import api from '../services/api'
 
 const tasteDimensions = [
   { key: 'acidity', label: 'Acidez' },
@@ -30,7 +30,12 @@ function AuthPage({ mode }) {
       })
       window.location.assign(!isRegistering && data.user.role === 'admin' ? '/' : '/conta')
     } catch (requestError) {
-      setError(requestError.response?.data?.message || 'Não foi possível concluir a solicitação.')
+      setError(
+        requestError.response?.data?.message
+        || (requestError.request
+          ? 'Não foi possível conectar à API. Verifique se o servidor está disponível.'
+          : 'Não foi possível concluir a solicitação.'),
+      )
     } finally {
       setSubmitting(false)
     }

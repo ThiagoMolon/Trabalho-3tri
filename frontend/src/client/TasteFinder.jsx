@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import api from './services/api'
+import api from '../services/api'
+import { PublicFooter, PublicHeader } from './Storefront'
 
 const dimensions = [
   { key: 'acidity', label: 'Acidez' },
@@ -99,15 +100,9 @@ function TasteFinder() {
   const progress = profile ? 100 : questions.length ? ((currentIndex + 1) / questions.length) * 100 : 0
 
   return (
-    <main className="taste-page">
-      <header className="taste-header">
-        <a className="taste-brand" href="/" aria-label="Origin Beans">
-          <span className="taste-brand-mark">OB</span>
-          <span>origin<span>beans</span></span>
-        </a>
-        <a className="taste-admin-link" href="/login">Entrar na conta</a>
-      </header>
-
+    <div className="public-site public-site-quiz">
+      <PublicHeader activePage="quiz" />
+      <main className="taste-page">
       <section className="taste-main">
         <div className="taste-intro">
           <p className="eyebrow">ORIGIN &amp; BEANS · TASTE FINDER</p>
@@ -216,9 +211,9 @@ function TasteFinder() {
           </section>
         )}
       </section>
-
-      <footer className="taste-footer">Origin &amp; Beans · Café com origem e personalidade</footer>
-    </main>
+      </main>
+      <PublicFooter />
+    </div>
   )
 }
 

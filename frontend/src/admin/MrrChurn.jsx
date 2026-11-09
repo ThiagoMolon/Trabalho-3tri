@@ -1,4 +1,5 @@
-import { MetricCards, LineChart, PageHeading, ExportButton, currencyFormatter } from './shared'
+import { MetricCards, LineChart, PageHeading, ExportButton } from './shared'
+import { currencyFormatter } from './formatters'
 import { mrrHistory, dashboardMetrics } from './mockData'
 
 function MrrChurn() {
