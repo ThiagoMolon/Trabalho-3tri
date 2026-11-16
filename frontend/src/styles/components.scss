@@ -1,0 +1,86 @@
+.site-navigation {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  min-height: 68px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 10px clamp(18px, 5vw, 72px);
+  color: #f5ead7;
+  background: #062b24;
+  font-family: 'Segoe UI', sans-serif;
+  font-style: normal;
+  line-height: 1.4;
+
+  &__brand {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 9px;
+    color: inherit;
+    font: italic 19px/1 Georgia, 'Times New Roman', serif;
+    text-decoration: none;
+
+    em,
+    b {
+      color: #e5c992;
+      font-weight: 400;
+    }
+  }
+
+  &__logo {
+    width: 25px;
+    height: 34px;
+  }
+
+  &__links {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 4px clamp(12px, 2.2vw, 28px);
+    font-size: 13px;
+
+    a {
+      padding-block: 8px;
+      border-bottom: 1px solid transparent;
+      color: inherit;
+      text-decoration: none;
+      transition: color 180ms ease, border-color 180ms ease;
+    }
+
+    a:hover,
+    a[aria-current='page'] {
+      color: #e5c992;
+      border-color: #e5c992;
+    }
+  }
+
+  &__cart {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+  }
+
+  &__cart-icon {
+    display: block;
+    width: 18px;
+    height: 18px;
+    flex: none;
+  }
+
+  @media (max-width: 700px) {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+    padding-block: 12px;
+
+    &__links {
+      justify-content: flex-start;
+      gap: 2px 16px;
+      font-size: 12px;
+    }
+  }
+}

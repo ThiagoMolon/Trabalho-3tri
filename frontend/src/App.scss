@@ -1582,7 +1582,7 @@
 
 .auth-page {
   display: flex;
-  min-height: 100svh;
+  min-height: calc(100svh - 68px);
   box-sizing: border-box;
   flex-direction: column;
   align-items: center;
@@ -1595,19 +1595,10 @@
   font-family: 'Trebuchet MS', 'Segoe UI', sans-serif;
 }
 
-.auth-brand {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 24px;
-  color: #263c32;
-  font: 700 20px Georgia, 'Times New Roman', serif;
-  text-decoration: none;
-}
-
-.auth-brand > span:last-child > span {
-  color: #82927e;
-  font-weight: 400;
+@media (max-width: 700px) {
+  .auth-page {
+    min-height: calc(100svh - 108px);
+  }
 }
 
 .auth-card {
