@@ -1,0 +1,161 @@
+@use '../styles/variables' as *;
+
+// Somente cores do _variables.scss. Tons claros derivam da paleta da marca.
+
+:root:has(.checkout) body {
+  min-width: 0;
+}
+
+.checkout,
+.checkout *,
+.checkout *::before,
+.checkout *::after {
+  box-sizing: border-box;
+}
+
+.checkout {
+  font-family: $brand-sans;
+  font-style: normal;
+  color: $brand-roast;
+
+  a { color: inherit; text-decoration: none; }
+  button, select, input { font: inherit; }
+  button { cursor: pointer; }
+  ul, ol { list-style: none; }
+}
+
+%card {
+  background: $brand-white;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba($brand-forest, .25);
+}
+
+// ===== Página =====
+.checkout {
+  &__main { width: min(1280px, 100% - 48px); flex: 1; margin: 0 auto; padding: 36px 0 64px; }
+  &__heading { margin-bottom: 30px; }
+  &__heading h1 { font-size: clamp(32px, 4vw, 46px); }
+  &__heading p { margin-top: 8px; color: $brand-caramel; }
+  &__error { margin-bottom: 20px; color: #9c2f25; }
+  &__empty { display: grid; justify-items: start; gap: 12px; padding: 28px; border: 1px solid $brand-sand; background: $brand-white; }
+  &__empty h2 { font-size: 24px; }
+  &__empty-link { color: $brand-forest; text-decoration: underline; text-underline-offset: 3px; }
+  &__layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, .7fr); gap: 32px; align-items: start; margin-top: 28px; }
+  &__column { display: grid; gap: 12px; min-width: 0; }
+}
+
+// ===== Etapas =====
+.checkout-steps {
+  &__list { display: flex; flex-wrap: wrap; align-items: center; margin-top: 4px; }
+
+  &__item {
+    display: flex; align-items: center; gap: 6px;
+    &:not(:last-child)::after { content: ''; width: 40px; height: 1px; margin: 0 0 0 -2px; background: $brand-roast; }
+    &:not(:last-child) { margin-right: 0; }
+  }
+  &__circle {
+    display: grid; place-items: center; width: 30px; height: 30px; flex: none;
+    border-radius: 50%; border: 1px solid $brand-roast; background: $brand-white; color: $brand-roast; font-size: 16px;
+    svg { width: 16px; height: 16px; }
+  }
+  &__label { font-size: 17px; color: $brand-roast; }
+
+  &__item--done &__circle { background: $brand-moss; border-color: $brand-moss; color: $brand-white; }
+  &__item--done &__label { color: $brand-caramel; }
+  &__item--current &__circle { background: $brand-roast; color: $brand-white; }
+}
+
+// ===== Entrega =====
+.delivery-card {
+  @extend %card;
+  padding: 20px 25px 18px;
+
+  &__name { font-size: 21px; line-height: 1.2; color: $brand-roast; }
+  &__text { font-size: 16px; line-height: 1.4; color: $brand-roast; }
+}
+
+// ===== Pagamento =====
+.payment-card {
+  @extend %card;
+  padding: 24px 25px 24px;
+
+  &__title { font-style: normal; font-weight: 700; font-size: clamp(24px, 3vw, 32px); line-height: 1.2; color: $brand-roast; }
+
+  &__tabs { display: grid; grid-template-columns: 1fr 1fr; margin-top: 6px; border: 1px solid $brand-roast; border-radius: 4px; overflow: hidden; }
+  &__tab {
+    min-width: 0;
+    white-space: normal;
+    height: 48px; border: 0; background: $brand-white; color: $brand-roast;
+    font-weight: 700; font-size: 16px; letter-spacing: .3px; transition: background .2s, color .2s;
+    &:hover { background: rgba($brand-sand, .35); }
+    &--active, &--active:hover { background: $brand-roast; color: $brand-white; }
+  }
+  &__panel { margin-top: 22px; }
+}
+
+// Prévia Pix
+.pix {
+  &__top { display: flex; gap: 24px; align-items: center; }
+  &__qr {
+    width: 180px; min-height: 180px; flex: none; display: grid; place-items: center; padding: 18px;
+    border: 1px dashed $brand-sand; border-radius: 4px; background: $brand-background;
+    color: $brand-caramel; font-size: 14px; text-align: center;
+  }
+  &__info { display: grid; gap: 8px; max-width: 40ch; }
+  &__info h3 { font: 600 18px/1.3 $brand-sans; color: $brand-roast; }
+  &__info p { line-height: 1.5; }
+  &__status { margin-top: 20px; padding: 14px 16px; border: 1px solid $brand-sand; border-radius: 4px; font-size: 14px; color: $brand-caramel; }
+}
+
+.card-panel {
+  padding: 18px;
+  border: 1px solid $brand-sand;
+  border-radius: 4px;
+  color: $brand-caramel;
+  line-height: 1.5;
+}
+
+// ===== Resumo do pedido =====
+.order-summary {
+  position: sticky; top: 24px;
+  padding: 28px 30px 24px;
+  background: $brand-roast; border-radius: 6px; color: $brand-white;
+
+  &__title { font: 400 32px/1.2 $brand-sans; font-style: normal; color: $brand-sand; }
+  &__items { margin-top: 12px; display: grid; gap: 10px; }
+  &__item { display: flex; justify-content: space-between; gap: 16px; font-size: 14px; }
+  &__item small { display: block; margin-top: 3px; color: $brand-sand; font-size: 12px; }
+
+  &__total {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin-top: 20px; padding-top: 18px; border-top: 1px solid rgba($brand-sand, .5);
+  }
+  &__total-label { font: 700 21px/1.2 $brand-sans; font-style: normal; }
+  &__total-value { font-style: normal; font-weight: 700; font-size: 24px; line-height: 1.1; }
+
+  &__note {
+    margin-top: 12px; padding: 10px 14px; border-radius: 4px;
+    background: $brand-caramel; text-align: center; font-size: 13px; line-height: 1.45;
+  }
+  &__button {
+    display: block; width: 100%; height: 54px; margin-top: 28px; border: 0; border-radius: 6px;
+    background: $brand-sand; color: $brand-forest; font-weight: 700; font-size: 18px; transition: filter .2s;
+    &:hover { filter: brightness(.93); }
+    &:disabled { cursor: not-allowed; opacity: .65; }
+  }
+  &__link { display: block; margin-top: 12px; text-align: center; font-size: 16px; color: $brand-sand; text-decoration: underline; }
+}
+
+// ===== Responsivo =====
+@media (max-width: 1100px) {
+  .checkout__main { padding: 32px 0 56px; }
+  .checkout__layout { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+  .order-summary { position: static; }
+}
+
+@media (max-width: 640px) {
+  .checkout-steps__label { display: none; }
+  .checkout-steps__item--current .checkout-steps__label { display: inline; }
+  .pix__top { align-items: flex-start; flex-direction: column; }
+  .order-summary__total-label, .order-summary__total-value { font-size: 28px; }
+}

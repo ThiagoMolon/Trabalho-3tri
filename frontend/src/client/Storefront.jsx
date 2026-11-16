@@ -1,11 +1,13 @@
-import { useEffect, useMemo, useState } from 'react'
-import api from '../services/api'
+import { useMemo, useState } from 'react'
 import { addCartItem, readCart, removeCartItem, updateCartItem } from '../services/cart'
+import usePublicData from '../services/usePublicData'
 import { currencyFormatter } from '../admin/formatters'
+import Navbar from '../components/Navbar'
 import '../styles/Storefront.scss'
 
 const categories = [
   ['todos', 'Todas as categorias'],
+  ['cafes', 'Cafés em grãos e moídos'],
   ['graos', 'Cafés em grãos'],
   ['moidos', 'Cafés moídos'],
   ['acessorios', 'Acessórios'],
@@ -36,70 +38,6 @@ function StoreState({ loading, error, empty, children }) {
   return children
 }
 
-function usePublicData(path, fallbackMessage) {
-  const [data, setData] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-
-  useEffect(() => {
-    let active = true
-    api.get(path)
-      .then(({ data: result }) => {
-        if (active) setData(result)
-      })
-      .catch((requestError) => {
-        if (active) setError(requestError.response?.data?.message || fallbackMessage)
-      })
-      .finally(() => {
-        if (active) setLoading(false)
-      })
-    return () => {
-      active = false
-    }
-  }, [path, fallbackMessage])
-
-  return { data, loading, error }
-}
-
-function getCartCount() {
-  const { items } = readCart()
-  return items.reduce((total, item) => total + item.quantity, 0)
-}
-
-function PublicHeader({ activePage }) {
-  const [cartCount, setCartCount] = useState(getCartCount)
-
-  useEffect(() => {
-    function updateCount() {
-      setCartCount(getCartCount())
-    }
-    window.addEventListener('origin-cart-updated', updateCount)
-    window.addEventListener('storage', updateCount)
-    return () => {
-      window.removeEventListener('origin-cart-updated', updateCount)
-      window.removeEventListener('storage', updateCount)
-    }
-  }, [])
-
-  return (
-    <header className="public-header">
-      <a className="public-brand" href="/loja" aria-label="Origin & Beans, início">
-        <span className="coffee-mark" aria-hidden="true">OB</span>
-        <span>Origin <em>&amp;</em> <b>Beans</b></span>
-      </a>
-      <nav className="public-nav" aria-label="Navegação principal">
-        <a href="/loja" aria-current={activePage === 'store' ? 'page' : undefined}>Loja</a>
-        <a href="/clube" aria-current={activePage === 'plans' ? 'page' : undefined}>Clube</a>
-        <a href="/quiz" aria-current={activePage === 'quiz' ? 'page' : undefined}>Taste Finder</a>
-        <a href="/login">Minha conta</a>
-        <a className="public-cart-link" href="/carrinho" aria-label={`Carrinho, ${cartCount} itens`}>
-          Carrinho ({cartCount})
-        </a>
-      </nav>
-    </header>
-  )
-}
-
 function PublicFooter() {
   return (
     <footer className="public-footer">
@@ -118,6 +56,24 @@ function TasteBanner() {
       </div>
       <a className="light-button button-link" href="/quiz">Fazer o quiz</a>
     </section>
+  )
+}
+
+function CartCheckoutSteps() {
+  const steps = ['Carrinho', 'Destino', 'Pagamento', 'Confirmação']
+
+  return (
+    <nav className="cart-checkout-steps" aria-label="Etapas da compra">
+      <p>Finalizar compra</p>
+      <ol>
+        {steps.map((step, index) => (
+          <li key={step} aria-current={index === 0 ? 'step' : undefined}>
+            <span className={index === 0 ? 'is-current' : ''}>{index + 1}</span>
+            {step}
+          </li>
+        ))}
+      </ol>
+    </nav>
   )
 }
 
@@ -154,14 +110,19 @@ function Storefront() {
   const { data: products, loading, error } = usePublicData('/vitrine/produtos', 'Não foi possível carregar os cafés.')
   const [search, setSearch] = useState('')
   const [query, setQuery] = useState('')
-  const [category, setCategory] = useState('todos')
+  const [category, setCategory] = useState(() => {
+    const requestedCategory = new URLSearchParams(window.location.search).get('categoria')
+    return categories.some(([value]) => value === requestedCategory) ? requestedCategory : 'todos'
+  })
   const [sort, setSort] = useState('name')
   const [feedback, setFeedback] = useState('')
 
   const visibleProducts = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase('pt-BR')
     return products
-      .filter((product) => category === 'todos' || product.category === category)
+      .filter((product) => category === 'todos'
+        || (category === 'cafes' && ['graos', 'moidos'].includes(product.category))
+        || product.category === category)
       .filter((product) => !normalizedQuery || [
         product.name,
         product.origin,
@@ -182,7 +143,7 @@ function Storefront() {
 
   return (
     <div className="public-site">
-      <PublicHeader activePage="store" />
+      <Navbar activePage="store" />
       <section className="store-hero">
         <div>
           <p className="store-overline">ORIGEM &amp; TORRA CUIDADAS</p>
@@ -239,7 +200,7 @@ function ProductDetails({ productId }) {
   if (loading || error || !product) {
     return (
       <div className="public-site">
-        <PublicHeader />
+        <Navbar activePage="store" />
         <main className="product-main">
           <StoreState loading={loading} error={error} empty="Este café não foi encontrado." />
         </main>
@@ -256,7 +217,7 @@ function ProductDetails({ productId }) {
 
   return (
     <div className="public-site product-page">
-      <PublicHeader activePage="store" />
+      <Navbar activePage="store" />
       <main className="product-main">
         <nav className="store-overline" aria-label="Breadcrumb"><a href="/loja">Loja</a> / {product.name}</nav>
         <section className="product-detail">
@@ -299,7 +260,7 @@ function SubscriptionPlans() {
   const { data: plans, loading, error } = usePublicData('/vitrine/planos', 'Não foi possível carregar os planos.')
   return (
     <div className="public-site">
-      <PublicHeader activePage="plans" />
+      <Navbar activePage="plans" />
       <section className="plans-hero">
         <p className="store-overline">CLUBE ORIGIN &amp; BEANS</p>
         <h1>Um café especial à sua porta.</h1>
@@ -312,7 +273,7 @@ function SubscriptionPlans() {
           <StoreState loading={loading} error={error} empty={plans.length === 0 ? 'Ainda não há planos disponíveis.' : ''}>
             <div className="plans-grid">
               {plans.map((plan) => (
-                <article className="plan-card" key={plan.id}>
+                <article className="plan-card" id={`plano-${plan.id}`} key={plan.id}>
                   <p className="plan-frequency">{plan.frequency}</p>
                   <h3>{plan.name}</h3>
                   <p className="plan-price">{currencyFormatter.format(Number(plan.price))}<span> / {plan.frequency}</span></p>
@@ -367,10 +328,9 @@ function CartPage() {
 
   return (
     <div className="public-site">
-      <PublicHeader />
+      <Navbar activePage="cart" />
       <main className="cart-main">
-        <p className="store-overline">SUA SELEÇÃO</p>
-        <h1>Carrinho</h1>
+        <CartCheckoutSteps />
         {error && <p className="feedback-error" role="alert">{error}</p>}
         {items.length === 0 ? (
           <section className="cart-empty store-state">
@@ -380,30 +340,35 @@ function CartPage() {
         ) : (
           <div className="cart-layout">
             <div className="cart-items">
-              {items.map((item) => (
-                <article className="cart-item" key={`${item.product_id}-${item.grind}`}>
-                  <ProductImage product={item} />
-                  <div className="cart-item-copy">
-                    <h2>{item.name}</h2>
-                    <p>{item.weight_grams ? `${item.weight_grams} g · ` : ''}{item.grind}</p>
-                    <strong>{currencyFormatter.format(Number(item.price) * item.quantity)}</strong>
-                  </div>
-                  <div className="cart-item-controls">
-                    <label className="visually-hidden" htmlFor={`quantity-${item.product_id}-${item.grind}`}>Quantidade de {item.name}</label>
-                    <select id={`quantity-${item.product_id}-${item.grind}`} value={item.quantity} onChange={(event) => updateItem(item, Number(event.target.value))}>
-                      {Array.from({ length: 10 }, (_, index) => index + 1).map((quantity) => <option key={quantity} value={quantity}>{quantity}</option>)}
-                    </select>
-                    <button className="text-button" type="button" onClick={() => removeItem(item)}>Remover</button>
-                  </div>
-                </article>
-              ))}
+              <section className="cart-items-card" aria-labelledby="cart-title">
+                <h1 id="cart-title">Seu carrinho</h1>
+                <p className="cart-items-caption">{items.length} {items.length === 1 ? 'item' : 'itens'} · cafés selecionados para seu pedido</p>
+                {items.map((item) => (
+                  <article className="cart-item" key={`${item.product_id}-${item.grind}`}>
+                    <ProductImage product={item} />
+                    <div className="cart-item-copy">
+                      <h2>{item.name}</h2>
+                      <p>{item.weight_grams ? `${item.weight_grams} g · ` : ''}{item.grind}</p>
+                    </div>
+                    <div className="cart-item-controls">
+                      <strong>{currencyFormatter.format(Number(item.price) * item.quantity)}</strong>
+                      <label htmlFor={`quantity-${item.product_id}-${item.grind}`}>Quantidade</label>
+                      <select id={`quantity-${item.product_id}-${item.grind}`} value={item.quantity} onChange={(event) => updateItem(item, Number(event.target.value))}>
+                        {Array.from({ length: 10 }, (_, index) => index + 1).map((quantity) => <option key={quantity} value={quantity}>{quantity}</option>)}
+                      </select>
+                      <button className="text-button" type="button" onClick={() => removeItem(item)}>Remover</button>
+                    </div>
+                  </article>
+                ))}
+              </section>
             </div>
             <aside className="cart-summary">
               <h2>Resumo do pedido</h2>
               <p><span>Subtotal</span><strong>{currencyFormatter.format(subtotal)}</strong></p>
-              <button className="gold-button" type="button" disabled title="Checkout indisponível">Checkout indisponível</button>
+              <p className="cart-summary-shipping">Frete calculado na etapa de entrega.</p>
+              <a className="gold-button button-link" href="/destino">Continuar para entrega</a>
               <a href="/loja">Continuar comprando</a>
-              <p className="local-cart-note">O checkout e o pagamento online ainda não estão disponíveis.</p>
+              <p className="local-cart-note">Esta demonstração não cria pedidos nem processa pagamentos.</p>
             </aside>
           </div>
         )}
@@ -413,4 +378,4 @@ function CartPage() {
   )
 }
 
-export { CartPage, ProductDetails, PublicFooter, PublicHeader, Storefront, SubscriptionPlans }
+export { CartPage, ProductDetails, PublicFooter, Storefront, SubscriptionPlans }

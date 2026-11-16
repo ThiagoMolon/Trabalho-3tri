@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import api from '../services/api'
-import { PublicFooter, PublicHeader } from './Storefront'
+import { PublicFooter } from './Storefront'
+import Navbar from '../components/Navbar'
 
 const dimensions = [
   { key: 'acidity', label: 'Acidez' },
@@ -101,7 +102,7 @@ function TasteFinder() {
 
   return (
     <div className="public-site public-site-quiz">
-      <PublicHeader activePage="quiz" />
+      <Navbar activePage="quiz" />
       <main className="taste-page">
       <section className="taste-main">
         <div className="taste-intro">

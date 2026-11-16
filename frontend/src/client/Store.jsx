@@ -1,46 +1,6 @@
 import { useState } from 'react';
+import Navbar from '../components/Navbar';
 import './StorePage.scss';
-
-// ===== Header =====
-
-const LINKS = [
-  { label: 'Home', href: '#' },
-  { label: 'Loja', href: '/loja' },
-  { label: 'Conta', href: '#' },
-];
-
-function Header({ active = 'Loja', cartCount = 0 }) {
-  return (
-    <header className="header">
-      <a className="header__logo logo" href="/loja" aria-label="Origin & Beans - início">
-        <svg className="logo__icon" viewBox="0 0 40 48" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
-          <path d="M18 3c-4 4 3 7-1 11M24 6c-3 3 2 5-1 8" />
-          <path d="M7 24h26v4c0 6-5 10-13 10S7 34 7 28z" />
-          <path d="M33 26c5 0 5 7 0 7M3 42c8 4 26 4 34 0" />
-        </svg>
-        <span className="logo__text">Origin <em>&amp;</em> <b className="logo__highlight">Beans</b></span>
-      </a>
-
-      <nav className="header__nav nav" aria-label="Principal">
-        {LINKS.map(({ label, href }) => (
-          <a
-            key={label}
-            href={href}
-            className={`nav__link${label === active ? ' nav__link--active' : ''}`}
-          >
-            {label}
-          </a>
-        ))}
-        <a className="nav__link nav__link--cart" href="#" aria-label={`Carrinho com ${cartCount} itens`}>
-          <svg className="nav__cart-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
-            <path d="M5 8h14l1 13H4z" /><path d="M9 8V6a3 3 0 0 1 6 0v2" />
-          </svg>
-          ({cartCount})
-        </a>
-      </nav>
-    </header>
-  );
-}
 
 // ===== PageTitle =====
 
@@ -245,7 +205,7 @@ export default function StorePage() {
 
   return (
     <>
-      <Header cartCount={cart.length} />
+      <Navbar activePage="store" cartCount={cart.length} />
       <PageTitle />
       <main className="store">
         <Filters />
