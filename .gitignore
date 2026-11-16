@@ -158,3 +158,6 @@ docker-compose.yml
 .dev.vars*
 !.dev.vars.example
 *.md
+*/tests
+
+
