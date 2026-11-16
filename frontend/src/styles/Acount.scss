@@ -1,0 +1,242 @@
+@use './variables' as *;
+
+// Somente cores do _variables.scss. Tons mais claros usam rgba() das próprias cores da marca.
+
+// ===== Base =====
+.account {
+  min-height: 100vh;
+  color: $brand-forest;
+  background: $brand-background;
+  font: italic 16px/1.4 $brand-serif;
+
+  *, *::before, *::after { box-sizing: border-box; }
+  a { color: inherit; text-decoration: none; }
+  button { font: inherit; cursor: pointer; }
+  ul { list-style: none; }
+}
+
+// ===== Topbar =====
+.account-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 65px;
+  padding: 0 73px;
+  background: $brand-forest;
+  color: $brand-sand;
+  box-shadow: 0 2px 4px rgba($brand-forest, .35);
+
+  &__logo { display: flex; align-items: center; gap: 10px; font-size: 24px; }
+  &__logo-icon { width: 30px; height: 36px; color: $brand-sand; }
+  &__logo-highlight { font-weight: 200; color: $brand-caramel; }
+
+  &__nav { display: flex; align-items: center; gap: 59px; font-size: 17px; }
+  &__link {
+    &--active { border-bottom: 2px solid $brand-sand; padding-bottom: 2px; }
+  }
+}
+
+// ===== Hero =====
+.account-hero {
+  padding: 32px 35px 56px;
+  background: rgba($brand-sand, .5);
+
+  &__eyebrow { font-size: 24px; color: $brand-caramel; }
+  &__title { margin-top: 4px; font-style: normal; font-weight: 600; font-size: 72px; line-height: 1.05; color: $brand-forest; }
+}
+
+// ===== Layout =====
+.account {
+  &__layout {
+    display: grid;
+    grid-template-columns: 260px 1fr;
+    gap: 20px;
+    align-items: start;
+    padding: 11px 83px 48px 35px;
+  }
+  &__content { display: grid; gap: 40px; }
+}
+
+// ===== Menu lateral =====
+.account-menu {
+  min-height: 295px;
+  padding: 15px;
+  background: $brand-white;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba($brand-forest, .25);
+
+  &__link {
+    display: block; height: 42px; padding: 0 16px; line-height: 42px;
+    border-radius: 6px; font-size: 16px; color: $brand-roast;
+    transition: background .2s;
+    &:hover { background: rgba($brand-sand, .35); }
+    &--active, &--active:hover { background: $brand-moss; color: $brand-white; }
+  }
+  &__logout {
+    width: 100%;
+    height: 42px;
+    margin-top: 10px;
+    padding: 0 16px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: $brand-caramel;
+    text-align: left;
+    &:hover { background: rgba($brand-sand, .35); }
+    &:disabled { cursor: wait; opacity: .7; }
+  }
+}
+
+// ===== Dados e estados vazios =====
+%account-card {
+  background: $brand-white;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba($brand-forest, .25);
+}
+
+%section-title {
+  font-weight: 400;
+  font-size: 24px;
+  line-height: 1.2;
+  color: $brand-forest;
+}
+
+.account-profile, .account-empty-section {
+  @extend %account-card;
+  padding: 28px 32px;
+
+  &__title { @extend %section-title; }
+}
+
+.account-profile {
+  &__details {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 20px;
+    margin-top: 20px;
+    dt { color: $brand-moss; font-size: 15px; }
+    dd { margin-top: 4px; overflow-wrap: anywhere; }
+  }
+}
+
+.account-empty-section {
+  &__link {
+    display: inline-block;
+    margin-top: 16px;
+    color: $brand-caramel !important;
+    text-decoration: underline !important;
+  }
+  &__message { margin-top: 18px; }
+  > p { margin-top: 12px; }
+}
+
+// ===== Cartões brancos =====
+%card {
+  background: $brand-white;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba($brand-forest, .25);
+}
+
+// ===== Preferências =====
+.preferences {
+  @extend %card;
+  padding: 22px 15px 20px;
+
+  &__title { font-weight: 400; font-size: 24px; line-height: 1.2; color: $brand-forest; }
+  &__form {
+    display: grid; grid-template-columns: repeat(3, 1fr) auto; gap: 18px; align-items: end; margin-top: 28px;
+  }
+  &__label { display: block; font-size: 15px; color: $brand-moss; }
+  &__select-wrap { position: relative; margin-top: 4px; }
+  &__select {
+    width: 100%; height: 45px; padding: 0 44px 0 15px;
+    appearance: none; background: $brand-white; color: $brand-forest;
+    border: 1px solid $brand-sand; border-radius: 2px; font-size: 16px;
+    &:focus-visible { outline: 2px solid $brand-moss; outline-offset: 2px; }
+  }
+  &__chevron { position: absolute; right: 12px; top: 50%; width: 26px; height: 26px; transform: translateY(-50%); pointer-events: none; color: $brand-forest; }
+  &__submit {
+    width: 235px; height: 45px; border: 0; border-radius: 2px;
+    background: $brand-sand; color: $brand-forest; font-size: 16px;
+    transition: filter .2s;
+    &:hover { filter: brightness(.93); }
+  }
+}
+
+// ===== Histórico =====
+.deliveries {
+  @extend %card;
+  padding: 32px;
+
+  &__title { font-weight: 400; font-size: 24px; line-height: 1.2; color: $brand-forest; }
+  &__scroll { overflow-x: auto; margin-top: 12px; }
+  &__table { width: 100%; min-width: 620px; border-collapse: collapse; font-size: 16px; }
+  &__head {
+    padding-bottom: 4px; text-align: left; font-weight: 400; font-size: 16px; color: $brand-moss;
+    border-bottom: 1px solid $brand-sand;
+  }
+  &__row:not(:last-child) &__cell { border-bottom: 1px solid $brand-sand; }
+  &__cell { padding: 9px 0; color: $brand-forest; }
+  &__link { color: $brand-caramel; text-decoration: underline; }
+}
+
+// ===== Perfil de paladar =====
+.taste-profile {
+  @extend %card;
+  padding: 28px 32px 30px;
+
+  &__header { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
+  &__title { font-weight: 400; font-size: 24px; line-height: 1.2; color: $brand-forest; }
+  &__button {
+    padding: 11px 15px; border: 1px solid $brand-roast; border-radius: 10px;
+    color: $brand-roast; font-size: 16px; transition: background .2s;
+    &:hover { background: rgba($brand-sand, .35); }
+  }
+
+  &__list { display: grid; grid-template-columns: repeat(3, 1fr); gap: 25px; margin-top: 14px; }
+  &__trait-header { display: flex; justify-content: space-between; font-size: 16px; color: $brand-forest; }
+  &__bar {
+    height: 9px; margin-top: 4px; border-radius: 5px;
+    background: linear-gradient(to right, $brand-moss var(--v), rgba($brand-sand, .5) var(--v));
+  }
+}
+
+// ===== Rodapé =====
+.account-footer {
+  display: flex; justify-content: space-between; align-items: flex-start; gap: 24px;
+  padding: 14px 48px 12px;
+  background: $brand-forest; color: $brand-sand; font-size: 16px; line-height: 1.2;
+
+  &__about { max-width: 480px; }
+  &__contact { text-align: right; }
+}
+
+.account-message {
+  @extend %account-card;
+  padding: 24px 28px;
+  &--error { color: #8a2f27; }
+}
+
+// ===== Responsivo =====
+@media (max-width: 1100px) {
+  .account-topbar { padding: 0 24px; }
+  .account__layout { grid-template-columns: 1fr; padding: 11px 24px 40px; }
+  .account-menu { min-height: 0; }
+  .account-menu__list { display: flex; flex-wrap: wrap; gap: 4px; }
+  .preferences__form { grid-template-columns: repeat(2, 1fr); }
+  .preferences__submit { width: 100%; grid-column: 1 / -1; }
+}
+
+@media (max-width: 640px) {
+  .account-topbar { height: auto; flex-direction: column; gap: 12px; padding: 14px 24px; }
+  .account-topbar__nav { gap: 28px; }
+  .account-hero { padding: 24px 24px 40px; }
+  .account-hero__title { font-size: 44px; }
+  .plan-summary { padding: 24px; }
+  .plan-summary__details { flex-direction: column; }
+  .preferences__form { grid-template-columns: 1fr; }
+  .deliveries, .taste-profile { padding: 24px; }
+  .taste-profile__list { grid-template-columns: 1fr; }
+  .account-footer { flex-direction: column; padding: 20px 24px; }
+  .account-footer__contact { text-align: left; }
+}
