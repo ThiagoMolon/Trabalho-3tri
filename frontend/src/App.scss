@@ -942,6 +942,12 @@
   grid-column: 1 / -1;
 }
 
+.field-help {
+  color: #536055;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
 .field input,
 .field select,
 .field textarea {
@@ -1562,6 +1568,15 @@
 
 .taste-result .taste-primary-button {
   margin-top: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+
+.taste-result .taste-restart-button {
+  display: block;
+  margin: 10px auto 0;
 }
 
 .taste-empty-title {

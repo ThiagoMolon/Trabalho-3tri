@@ -1,5 +1,6 @@
 const express = require('express')
 const { getShippingOptions, readItems, validateAddress } = require('../services/commerce')
+const { createOrderPreference } = require('../services/mercadopago')
 
 function readId(value) {
   const id = Number(value)
@@ -11,10 +12,11 @@ function readId(value) {
   return id
 }
 
-async function loadOrder(client, id, userId) {
+async function loadOrder(client, id, userId, lock = false) {
   const result = await client.query(
-    `SELECT id, status, shipping_address, subtotal, shipping_cost, total, tracking_code, created_at
-     FROM orders WHERE id = $1 AND user_id = $2`,
+    `SELECT id, status, shipping_address, subtotal, shipping_cost, total, payment_gateway,
+       gateway_payment_id, gateway_preference_id, gateway_checkout_url, tracking_code, created_at
+     FROM orders WHERE id = $1 AND user_id = $2${lock ? ' FOR UPDATE' : ''}`,
     [id, userId],
   )
   if (result.rowCount === 0) return null
@@ -33,8 +35,12 @@ async function loadOrder(client, id, userId) {
   return { ...order, items: items.rows }
 }
 
-function createOrdersRouter(pool) {
+function createOrdersRouter(pool, options = {}) {
   const router = express.Router()
+  const paymentOptions = {
+    environment: options.environment || process.env,
+    fetchImpl: options.fetchImpl || globalThis.fetch,
+  }
 
   router.get('/me', async (req, res) => {
     try {
@@ -53,10 +59,55 @@ function createOrdersRouter(pool) {
     }
   })
 
+  router.get('/admin/payments', async (req, res) => {
+    if (req.user?.role !== 'admin') {
+      return res.status(403).json({ message: 'Esta área é exclusiva para administradores.' })
+    }
+    try {
+      const result = await pool.query(`
+        SELECT 'order' AS kind, order_record.id, order_record.created_at AS date,
+          user_record.name AS customer,
+          CASE
+            WHEN order_record.status = 'paid' THEN 'aprovado'
+            WHEN order_record.status = 'canceled' THEN 'recusado'
+            ELSE 'pendente'
+          END AS status,
+          order_record.total AS amount,
+          CASE
+            WHEN order_record.payment_gateway = 'simulation' THEN 'pix'
+            WHEN order_record.payment_gateway = 'mercadopago' THEN 'mercado_pago'
+            ELSE 'demonstrativo'
+          END AS method
+        FROM orders AS order_record
+        JOIN users AS user_record ON user_record.id = order_record.user_id
+        UNION ALL
+        SELECT 'subscription' AS kind, subscription.id, subscription.created_at AS date,
+          subscription.customer_name AS customer,
+          CASE
+            WHEN subscription.status = 'ativa' THEN 'aprovado'
+            WHEN subscription.status = 'cancelada' THEN 'recusado'
+            ELSE 'pendente'
+          END AS status,
+          COALESCE(subscription.billing_amount, plan.price) AS amount,
+          'recorrente' AS method
+        FROM customer_subscriptions AS subscription
+        JOIN subscription_plans AS plan ON plan.id = subscription.plan_id
+        ORDER BY date DESC, kind, id DESC
+      `)
+      return res.json(result.rows)
+    } catch (error) {
+      console.error('Could not load real payments:', error.message)
+      return res.status(500).json({ message: 'Não foi possível carregar os pagamentos do banco.' })
+    }
+  })
+
   router.post('/', async (req, res) => {
     let client
     try {
       const items = readItems(req.body?.items)
+      if (items.some((item) => item.itemType !== 'product')) {
+        return res.status(400).json({ message: 'Assinaturas recorrentes devem ser iniciadas separadamente do pedido de produtos.' })
+      }
       const shippingMethod = req.body?.shipping_method
       if (!['pac', 'sedex'].includes(shippingMethod)) {
         return res.status(400).json({ message: 'Selecione uma opção de frete válida.' })
@@ -216,6 +267,120 @@ function createOrdersRouter(pool) {
     }
   })
 
+  router.post('/:id/demo-confirm', async (req, res) => {
+    let client
+    try {
+      const id = readId(req.params.id)
+      client = await pool.connect()
+      await client.query('BEGIN')
+      const order = await loadOrder(client, id, req.user.id, true)
+      if (!order) {
+        await client.query('ROLLBACK')
+        return res.status(404).json({ message: 'Pedido não encontrado.' })
+      }
+      if (order.status !== 'pending') {
+        await client.query('ROLLBACK')
+        return res.status(409).json({ message: 'Este pedido já foi finalizado.' })
+      }
+      await client.query(
+        `UPDATE orders
+         SET status = 'paid',
+             payment_gateway = 'simulation',
+             gateway_payment_id = $1,
+             gateway_preference_id = NULL,
+             gateway_checkout_url = NULL
+         WHERE id = $2 AND user_id = $3 AND status = 'pending'`,
+        [`demo-${Date.now()}-${id}`, id, req.user.id],
+      )
+      await client.query('COMMIT')
+      return res.json({ ...order, status: 'paid', payment_gateway: 'simulation' })
+    } catch (error) {
+      if (client) {
+        try {
+          await client.query('ROLLBACK')
+        } catch (rollbackError) {
+          console.error('Could not roll back simulated order confirmation:', rollbackError.message)
+        }
+      }
+      if (error.statusCode) return res.status(error.statusCode).json({ message: error.message })
+      console.error('Could not confirm simulated order:', error.message)
+      return res.status(500).json({ message: 'Não foi possível confirmar o pedido demonstrativo.' })
+    } finally {
+      client?.release()
+    }
+  })
+
+  router.post('/:id/mercadopago-preference', async (req, res) => {
+    let client
+    try {
+      const id = readId(req.params.id)
+      client = await pool.connect()
+      await client.query('BEGIN')
+      const order = await loadOrder(client, id, req.user.id, true)
+      if (!order) {
+        await client.query('ROLLBACK')
+        return res.status(404).json({ message: 'Pedido não encontrado.' })
+      }
+      if (order.status !== 'pending') {
+        await client.query('ROLLBACK')
+        return res.status(409).json({ message: 'Este pedido não está aguardando pagamento.' })
+      }
+      if (order.payment_gateway && order.payment_gateway !== 'mercadopago') {
+        await client.query('ROLLBACK')
+        return res.status(409).json({ message: 'Este pedido foi iniciado por outro meio de pagamento.' })
+      }
+      if (order.items.length === 0 || order.items.some((item) => item.is_recurring)) {
+        await client.query('ROLLBACK')
+        return res.status(409).json({ message: 'Este pedido não pode ser pago pelo Checkout Pro.' })
+      }
+      if (order.gateway_checkout_url) {
+        await client.query('COMMIT')
+        return res.json({ init_point: order.gateway_checkout_url })
+      }
+      const subscriptionId = req.body?.subscription_id ? readId(req.body.subscription_id) : null
+      if (subscriptionId) {
+        const subscription = await client.query(
+          `SELECT id FROM customer_subscriptions
+           WHERE id = $1 AND user_id = $2`,
+          [subscriptionId, req.user.id],
+        )
+        if (subscription.rowCount === 0) {
+          await client.query('ROLLBACK')
+          return res.status(400).json({ message: 'A assinatura associada não está disponível.' })
+        }
+      }
+
+      const preference = await createOrderPreference(
+        order,
+        req.user.email,
+        subscriptionId,
+        paymentOptions,
+      )
+      await client.query(
+        `UPDATE orders SET payment_gateway = 'mercadopago',
+          gateway_preference_id = $1, gateway_checkout_url = $2
+         WHERE id = $3 AND user_id = $4 AND status = 'pending'
+           AND (payment_gateway IS NULL OR payment_gateway = 'mercadopago')`,
+        [preference.id, preference.initPoint, id, req.user.id],
+      )
+      await client.query('COMMIT')
+      return res.json({ init_point: preference.initPoint })
+    } catch (error) {
+      if (client) {
+        try {
+          await client.query('ROLLBACK')
+        } catch (rollbackError) {
+          console.error('Could not roll back Mercado Pago preference creation:', rollbackError.message)
+        }
+      }
+      if (error.statusCode) return res.status(error.statusCode).json({ message: error.message })
+      console.error('Could not create Mercado Pago preference:', error.message)
+      return res.status(500).json({ message: 'Não foi possível iniciar o pagamento pelo Mercado Pago.' })
+    } finally {
+      client?.release()
+    }
+  })
+
   router.get('/:id', async (req, res) => {
     try {
       const order = await loadOrder(pool, readId(req.params.id), req.user.id)
@@ -225,87 +390,6 @@ function createOrdersRouter(pool) {
       if (error.statusCode) return res.status(error.statusCode).json({ message: error.message })
       console.error('Could not load customer order:', error.message)
       return res.status(500).json({ message: 'Não foi possível carregar o pedido.' })
-    }
-  })
-
-  router.patch('/:id/simulate-pay', async (req, res) => {
-    let client
-    try {
-      const id = readId(req.params.id)
-      client = await pool.connect()
-      await client.query('BEGIN')
-      const orderResult = await client.query(
-        `SELECT order_record.*, user_record.name AS customer_name, user_record.email AS customer_email
-         FROM orders AS order_record
-         JOIN users AS user_record ON user_record.id = order_record.user_id
-         WHERE order_record.id = $1 AND order_record.user_id = $2
-         FOR UPDATE OF order_record`,
-        [id, req.user.id],
-      )
-      if (orderResult.rowCount === 0) {
-        await client.query('ROLLBACK')
-        return res.status(404).json({ message: 'Pedido não encontrado.' })
-      }
-      const order = orderResult.rows[0]
-      if (order.status === 'paid') {
-        await client.query('COMMIT')
-        return res.json(await loadOrder(pool, id, req.user.id))
-      }
-      if (order.status !== 'pending') {
-        await client.query('ROLLBACK')
-        return res.status(409).json({ message: 'Este pedido não pode receber pagamento.' })
-      }
-
-      const items = await client.query(
-        `SELECT id, plan_id, grind, frequency, quantity
-         FROM order_items WHERE order_id = $1 AND is_recurring = TRUE`,
-        [id],
-      )
-      const addressId = order.address_id || order.shipping_address?.address_id || null
-      for (const item of items.rows) {
-        for (let index = 0; index < item.quantity; index += 1) {
-          const subscription = await client.query(
-            `INSERT INTO customer_subscriptions
-              (customer_name, customer_email, user_id, plan_id, address_id, grind, frequency,
-               status, started_at, next_renewal)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, 'ativa', CURRENT_DATE,
-               CASE $7
-                 WHEN 'semanal' THEN CURRENT_DATE + 7
-                 WHEN 'quinzenal' THEN CURRENT_DATE + 14
-                 WHEN 'bimestral' THEN CURRENT_DATE + 60
-                 ELSE CURRENT_DATE + 30
-               END)
-             RETURNING id`,
-            [order.customer_name, order.customer_email, req.user.id, item.plan_id,
-              addressId, item.grind || 'Grãos inteiros', item.frequency || 'mensal'],
-          )
-          await client.query(
-            'UPDATE order_items SET subscription_id = $1 WHERE id = $2',
-            [subscription.rows[0].id, item.id],
-          )
-        }
-      }
-      await client.query(
-        "UPDATE orders SET status = 'paid', payment_gateway = 'simulation' WHERE id = $1",
-        [id],
-      )
-      const paidOrder = await loadOrder(client, id, req.user.id)
-      await client.query('COMMIT')
-      return res.json(paidOrder)
-    } catch (error) {
-      if (client) {
-        try {
-          await client.query('ROLLBACK')
-        } catch (rollbackError) {
-          console.error('Could not roll back simulated payment:', rollbackError.message)
-        }
-      }
-      if (error.statusCode) return res.status(error.statusCode).json({ message: error.message })
-      if (error.code === '23503') return res.status(409).json({ message: 'Não foi possível ativar a assinatura deste pedido.' })
-      console.error('Could not simulate customer payment:', error.message)
-      return res.status(500).json({ message: 'Não foi possível registrar o pagamento simulado.' })
-    } finally {
-      client?.release()
     }
   })
 

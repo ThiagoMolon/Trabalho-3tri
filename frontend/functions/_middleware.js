@@ -10,6 +10,7 @@ const apiPathPrefixes = [
   '/addresses/',
   '/shipping/',
   '/orders/',
+  '/webhooks/',
 ]
 
 export async function onRequest({ request, env = {}, next }) {

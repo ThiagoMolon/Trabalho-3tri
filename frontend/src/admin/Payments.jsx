@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import api from '../services/api'
 import { MetricCards, PageHeading, ExportButton, StatusBadge } from './shared'
 import { formatDate, currencyFormatter } from './formatters'
-import { payments } from './mockData'
 
 const tabs = [
   { id: 'todos', label: 'Todos' },
@@ -19,10 +19,39 @@ const statusLabels = {
 const methodLabels = {
   cartão: 'Cartão',
   pix: 'Pix',
+  demonstrativo: 'Demonstrativo',
+  mercado_pago: 'Mercado Pago',
+  recorrente: 'Recorrente',
 }
 
 function Payments() {
   const [tab, setTab] = useState('todos')
+  const [payments, setPayments] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    let active = true
+    api.get('/orders/admin/payments')
+      .then(({ data }) => {
+        if (active) setPayments(data.map((item) => ({
+          id: `${item.kind}-${item.id}`,
+          date: item.date,
+          reference: item.kind === 'subscription' ? `Assinatura #${item.id}` : `Pedido #${item.id}`,
+          customer: item.customer,
+          method: item.method,
+          amount: Number(item.amount),
+          status: item.status,
+        })))
+      })
+      .catch((requestError) => {
+        if (active) setError(requestError.response?.data?.message || 'Não foi possível carregar os pagamentos.')
+      })
+      .finally(() => {
+        if (active) setLoading(false)
+      })
+    return () => { active = false }
+  }, [])
 
   const received = payments.filter((item) => item.status === 'aprovado').reduce((sum, item) => sum + item.amount, 0)
   const pending = payments.filter((item) => item.status === 'pendente').length
@@ -30,8 +59,29 @@ function Payments() {
 
   const rows = useMemo(
     () => (tab === 'todos' ? payments : payments.filter((item) => item.status === tab)),
-    [tab],
+    [tab, payments],
   )
+
+  function exportCsv() {
+    const header = ['Data', 'Referência', 'Cliente', 'Método', 'Valor', 'Situação']
+    const lines = rows.map((item) => [
+      formatDate(item.date),
+      item.reference,
+      item.customer,
+      methodLabels[item.method] || item.method,
+      Number(item.amount).toFixed(2).replace('.', ','),
+      statusLabels[item.status],
+    ])
+    const csv = [header, ...lines]
+      .map((line) => line.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(';'))
+      .join('\n')
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'pagamentos.csv'
+    link.click()
+    URL.revokeObjectURL(url)
+  }
 
   return (
     <>
@@ -39,7 +89,7 @@ function Payments() {
         eyebrow="FINANCEIRO"
         title="Pagamentos"
         description="Recebimentos, pendências e recusas do mês."
-        actions={<ExportButton onClick={() => window.alert('Exportação de pagamentos em breve.')} />}
+        actions={<ExportButton onClick={exportCsv} />}
       />
 
       <MetricCards
@@ -79,7 +129,11 @@ function Payments() {
               </tr>
             </thead>
             <tbody>
-              {rows.length === 0 ? (
+              {loading ? (
+                <tr><td colSpan="6"><p className="catalog-empty">Carregando pagamentos...</p></td></tr>
+              ) : error ? (
+                <tr><td colSpan="6"><p className="catalog-empty">{error}</p></td></tr>
+              ) : rows.length === 0 ? (
                 <tr>
                   <td colSpan="6"><p className="catalog-empty">Nenhum pagamento nesta situação.</p></td>
                 </tr>

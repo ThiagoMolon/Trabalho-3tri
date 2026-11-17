@@ -31,6 +31,9 @@ function ProductForm({ editingId = null, initialValues = initialProduct, onCance
       sensory_notes: isCoffee
         ? product.sensory_notes.split(',').map((note) => note.trim()).filter(Boolean)
         : [],
+      acidity: isCoffee && product.acidity !== '' ? Number(product.acidity) : null,
+      bitterness: isCoffee && product.bitterness !== '' ? Number(product.bitterness) : null,
+      sweetness: isCoffee && product.sweetness !== '' ? Number(product.sweetness) : null,
       origin: isCoffee ? product.origin || null : null,
       producer: isCoffee ? product.producer || null : null,
       variety: isCoffee ? product.variety || null : null,
@@ -143,6 +146,19 @@ function ProductForm({ editingId = null, initialValues = initialProduct, onCance
                 <input name="sensory_notes" value={product.sensory_notes} onChange={updateField} placeholder="Chocolate, caramelo, cítrico" />
                 <small>Separe cada nota com vírgula.</small>
               </label>
+              <label className="field">
+                <span>Acidez (0 a 10)</span>
+                <input name="acidity" type="number" value={product.acidity} onChange={updateField} min="0" max="10" step="0.1" placeholder="Ex.: 7.5" />
+              </label>
+              <label className="field">
+                <span>Amargor (0 a 10)</span>
+                <input name="bitterness" type="number" value={product.bitterness} onChange={updateField} min="0" max="10" step="0.1" placeholder="Ex.: 3" />
+              </label>
+              <label className="field">
+                <span>Doçura (0 a 10)</span>
+                <input name="sweetness" type="number" value={product.sweetness} onChange={updateField} min="0" max="10" step="0.1" placeholder="Ex.: 8" />
+              </label>
+              <p className="field-help field-wide">Preencha as três características para a loja comparar este café com o resultado do Taste Finder.</p>
             </div>
           </section>
         )}

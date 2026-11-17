@@ -46,6 +46,9 @@ CREATE TABLE products (
     variety        VARCHAR(100),
     score          NUMERIC(4,1),
     sensory_notes  TEXT[],   -- ex: {'chocolate','caramelo','cítrico'}
+    acidity        NUMERIC(3,1) CHECK (acidity BETWEEN 0 AND 10),
+    bitterness     NUMERIC(3,1) CHECK (bitterness BETWEEN 0 AND 10),
+    sweetness      NUMERIC(3,1) CHECK (sweetness BETWEEN 0 AND 10),
     stock          INT NOT NULL DEFAULT 0 CHECK (stock >= 0),
     active         BOOLEAN NOT NULL DEFAULT TRUE
 );
@@ -87,10 +90,18 @@ CREATE TABLE customer_subscriptions (
     frequency                VARCHAR(20)
                              CHECK (frequency IN ('semanal', 'quinzenal', 'mensal', 'bimestral')),
     status                   VARCHAR(20) NOT NULL DEFAULT 'ativa'
-                             CHECK (status IN ('ativa', 'pausada', 'cancelada')),
+                             CHECK (status IN ('pendente', 'ativa', 'pausada', 'cancelada')),
     next_renewal             DATE,
     started_at               DATE NOT NULL DEFAULT CURRENT_DATE,
     canceled_at              TIMESTAMPTZ,
+    shipping_cost            NUMERIC(10,2) NOT NULL DEFAULT 0,
+    billing_amount           NUMERIC(10,2),
+    shipping_method          VARCHAR(10),
+    shipping_recipient       VARCHAR(150),
+    shipping_phone           VARCHAR(20),
+    mercadopago_plan_id      VARCHAR(100) UNIQUE,
+    mercadopago_preapproval_id VARCHAR(100) UNIQUE,
+    mercadopago_checkout_url VARCHAR(1000),
     created_at               TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -107,10 +118,15 @@ CREATE TABLE orders (
                         CHECK (status IN ('pending', 'paid', 'shipped', 'delivered', 'canceled')),
     payment_gateway     VARCHAR(15) CHECK (payment_gateway IN ('stripe', 'mercadopago', 'simulation')),
     gateway_payment_id  VARCHAR(100) UNIQUE,   -- também evita processar webhook duplicado
+    gateway_preference_id VARCHAR(100),
+    gateway_checkout_url VARCHAR(1000),
     tracking_code       VARCHAR(60),
     label_url           VARCHAR(500),
     created_at          TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE customer_subscriptions
+    ADD COLUMN checkout_order_id INT REFERENCES orders(id) ON DELETE SET NULL;
 
 CREATE TABLE order_items (
     id               SERIAL PRIMARY KEY,

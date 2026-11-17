@@ -11,6 +11,7 @@ const createAuthRouter = require('./routes/auth')
 const createAddressesRouter = require('./routes/addresses')
 const createShippingRouter = require('./routes/shipping')
 const createOrdersRouter = require('./routes/orders')
+const createMercadoPagoWebhooksRouter = require('./routes/mercadopago-webhooks')
 
 const app = express()
 const port = process.env.PORT || 3000
@@ -42,6 +43,7 @@ app.use(cors({
   credentials: true,
 }))
 app.use(express.json())
+app.use('/webhooks/mercadopago', createMercadoPagoWebhooksRouter(pool))
 if (!authSecret || authSecret.length < 32) {
   throw new Error('Configure AUTH_TOKEN_SECRET com pelo menos 32 caracteres.')
 }
@@ -106,9 +108,18 @@ async function ensureProductsTable() {
       variety VARCHAR(100),
       score NUMERIC(4,1),
       sensory_notes TEXT[],
+      acidity NUMERIC(3,1) CHECK (acidity BETWEEN 0 AND 10),
+      bitterness NUMERIC(3,1) CHECK (bitterness BETWEEN 0 AND 10),
+      sweetness NUMERIC(3,1) CHECK (sweetness BETWEEN 0 AND 10),
       stock INT NOT NULL DEFAULT 0 CHECK (stock >= 0),
       active BOOLEAN NOT NULL DEFAULT TRUE
     )
+  `)
+  await pool.query(`
+    ALTER TABLE products
+      ADD COLUMN IF NOT EXISTS acidity NUMERIC(3,1) CHECK (acidity BETWEEN 0 AND 10),
+      ADD COLUMN IF NOT EXISTS bitterness NUMERIC(3,1) CHECK (bitterness BETWEEN 0 AND 10),
+      ADD COLUMN IF NOT EXISTS sweetness NUMERIC(3,1) CHECK (sweetness BETWEEN 0 AND 10)
   `)
 }
 
@@ -173,12 +184,47 @@ async function ensureSubscriptionTables() {
       address_id INT REFERENCES addresses(id) ON DELETE SET NULL,
       grind VARCHAR(50),
       frequency VARCHAR(20),
-      status VARCHAR(20) NOT NULL CHECK (status IN ('ativa', 'pausada', 'cancelada')),
+      status VARCHAR(20) NOT NULL CHECK (status IN ('pendente', 'ativa', 'pausada', 'cancelada')),
       started_at DATE NOT NULL DEFAULT CURRENT_DATE,
       next_renewal DATE,
       canceled_at TIMESTAMPTZ,
+      shipping_cost NUMERIC(10,2) NOT NULL DEFAULT 0,
+      billing_amount NUMERIC(10,2),
+      shipping_method VARCHAR(10),
+      shipping_recipient VARCHAR(150),
+      shipping_phone VARCHAR(20),
+      mercadopago_plan_id VARCHAR(100),
+      mercadopago_preapproval_id VARCHAR(100),
+      mercadopago_checkout_url VARCHAR(1000),
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
+  `)
+  await pool.query(`
+    ALTER TABLE customer_subscriptions
+      ADD COLUMN IF NOT EXISTS shipping_cost NUMERIC(10,2) NOT NULL DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS billing_amount NUMERIC(10,2),
+      ADD COLUMN IF NOT EXISTS shipping_method VARCHAR(10),
+      ADD COLUMN IF NOT EXISTS shipping_recipient VARCHAR(150),
+      ADD COLUMN IF NOT EXISTS shipping_phone VARCHAR(20),
+      ADD COLUMN IF NOT EXISTS mercadopago_plan_id VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS mercadopago_preapproval_id VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS mercadopago_checkout_url VARCHAR(1000)
+  `)
+  await pool.query('ALTER TABLE customer_subscriptions DROP CONSTRAINT IF EXISTS customer_subscriptions_status_check')
+  await pool.query(`
+    ALTER TABLE customer_subscriptions
+      ADD CONSTRAINT customer_subscriptions_status_check
+      CHECK (status IN ('pendente', 'ativa', 'pausada', 'cancelada'))
+  `)
+  await pool.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS customer_subscriptions_mercadopago_plan_idx
+    ON customer_subscriptions (mercadopago_plan_id)
+    WHERE mercadopago_plan_id IS NOT NULL
+  `)
+  await pool.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS customer_subscriptions_mercadopago_preapproval_idx
+    ON customer_subscriptions (mercadopago_preapproval_id)
+    WHERE mercadopago_preapproval_id IS NOT NULL
   `)
   await pool.query('ALTER TABLE customer_subscriptions ADD COLUMN IF NOT EXISTS user_id INT REFERENCES users(id) ON DELETE CASCADE')
   await pool.query('ALTER TABLE customer_subscriptions ADD COLUMN IF NOT EXISTS address_id INT REFERENCES addresses(id) ON DELETE SET NULL')
@@ -227,12 +273,22 @@ async function ensureOrderTables() {
         CHECK (status IN ('pending', 'paid', 'shipped', 'delivered', 'canceled')),
       payment_gateway VARCHAR(15) CHECK (payment_gateway IN ('stripe', 'mercadopago', 'simulation')),
       gateway_payment_id VARCHAR(100) UNIQUE,
+      gateway_preference_id VARCHAR(100),
+      gateway_checkout_url VARCHAR(1000),
       tracking_code VARCHAR(60),
       label_url VARCHAR(500),
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `)
   await pool.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS address_id INT REFERENCES addresses(id) ON DELETE SET NULL')
+  await pool.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS gateway_preference_id VARCHAR(100)')
+  await pool.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS gateway_checkout_url VARCHAR(1000)')
+  await pool.query('ALTER TABLE customer_subscriptions ADD COLUMN IF NOT EXISTS checkout_order_id INT REFERENCES orders(id) ON DELETE SET NULL')
+  await pool.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS orders_gateway_preference_id_idx
+    ON orders (gateway_preference_id)
+    WHERE gateway_preference_id IS NOT NULL
+  `)
   await pool.query(`
     DO $$
     BEGIN

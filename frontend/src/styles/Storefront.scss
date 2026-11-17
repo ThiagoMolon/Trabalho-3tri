@@ -312,6 +312,33 @@
     color: var(--public-green);
   }
 
+  .taste-profile-missing {
+    margin-top: 6px;
+    color: #69472e;
+    font-size: 11px;
+  }
+
+  .taste-filter-notice {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px;
+    margin-bottom: 14px;
+    padding: 11px 13px;
+    border: 1px solid #d5c5b1;
+    border-radius: 3px;
+    color: var(--public-brown);
+    background: #f2ede5;
+    font-size: 12px;
+  }
+
+  .taste-filter-notice a {
+    margin-left: auto;
+    font-weight: 600;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
   .stock-note {
     display: block;
     margin-top: 6px;
@@ -923,6 +950,10 @@
 
     .store-search {
       width: 100%;
+    }
+
+    .taste-filter-notice a {
+      margin-left: 0;
     }
 
     .store-main {

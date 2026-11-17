@@ -1,4 +1,11 @@
 const express = require('express')
+const { getShippingOptions } = require('../services/commerce')
+const {
+  createSubscriptionPlan,
+  frequencySettings,
+  getFrontendUrl,
+  updatePreapproval,
+} = require('../services/mercadopago')
 
 const frequencies = new Set(['semanal', 'mensal', 'bimestral'])
 const statuses = new Set(['ativa', 'pausada', 'cancelada'])
@@ -248,8 +255,12 @@ function createSubscriptionsRouter(pool) {
   return router
 }
 
-function createCustomerSubscriptionsRouter(pool) {
+function createCustomerSubscriptionsRouter(pool, options = {}) {
   const router = express.Router()
+  const paymentOptions = {
+    environment: options.environment || process.env,
+    fetchImpl: options.fetchImpl || globalThis.fetch,
+  }
   const frequencies = new Set(['semanal', 'quinzenal', 'mensal', 'bimestral'])
   const statuses = new Map([
     ['active', 'ativa'],
@@ -266,6 +277,8 @@ function createCustomerSubscriptionsRouter(pool) {
         `SELECT subscription.id, subscription.plan_id, subscription.address_id,
           subscription.grind, subscription.frequency, subscription.status,
           subscription.started_at, subscription.next_renewal, subscription.canceled_at,
+          subscription.billing_amount, subscription.shipping_cost, subscription.shipping_method,
+          subscription.mercadopago_checkout_url,
           plan.name AS plan_name, plan.price AS plan_price, plan.description AS plan_description
          FROM customer_subscriptions AS subscription
          JOIN subscription_plans AS plan ON plan.id = subscription.plan_id
@@ -281,9 +294,230 @@ function createCustomerSubscriptionsRouter(pool) {
     }
   })
 
+  router.post('/me/demo-checkout', async (req, res) => {
+    try {
+      const planId = readId(req.body?.plan_id)
+      const addressId = readId(req.body?.address_id)
+      const orderId = req.body?.order_id ? readId(req.body.order_id) : null
+      const frequency = req.body?.frequency
+      if (!frequencies.has(frequency)) throw validationError('Selecione uma frequência válida.')
+      const grind = typeof req.body?.grind === 'string' ? req.body.grind.trim() : ''
+      if (!grind || grind.length > 50) throw validationError('Selecione uma moagem válida.')
+      const shippingMethod = req.body?.shipping_method
+      if (!['pac', 'sedex'].includes(shippingMethod)) throw validationError('Selecione uma opção de frete válida.')
+      const recipient = typeof req.body?.shipping_recipient === 'string' ? req.body.shipping_recipient.trim() : ''
+      const phone = typeof req.body?.shipping_phone === 'string' ? req.body.shipping_phone.trim() : ''
+      if (!recipient || recipient.length > 150 || !phone || phone.length > 20) {
+        throw validationError('Informe um destinatário e telefone válidos para a entrega recorrente.')
+      }
+
+      const [planResult, addressResult] = await Promise.all([
+        pool.query('SELECT id, name, price FROM subscription_plans WHERE id = $1 AND active = TRUE', [planId]),
+        pool.query('SELECT id, cep FROM addresses WHERE id = $1 AND user_id = $2', [addressId, req.user.id]),
+      ])
+      if (planResult.rowCount === 0) throw validationError('O plano selecionado não está mais disponível.')
+      if (addressResult.rowCount === 0) throw validationError('Salve um endereço na sua conta para a entrega recorrente.')
+      if (orderId) {
+        const orderResult = await pool.query(
+          "SELECT id FROM orders WHERE id = $1 AND user_id = $2 AND status = 'pending'",
+          [orderId, req.user.id],
+        )
+        if (orderResult.rowCount === 0) throw validationError('O pedido de produtos associado não está disponível.')
+      }
+
+      const shippingQuote = await getShippingOptions(pool, addressResult.rows[0].cep, [{
+        item_type: 'subscription',
+        plan_id: planId,
+        quantity: 1,
+        grind,
+        frequency,
+      }])
+      const shipping = shippingQuote.options.find((option) => option.id === shippingMethod)
+      const plan = planResult.rows[0]
+      const billingAmount = Math.round((Number(plan.price) + shipping.cost + Number.EPSILON) * 100) / 100
+
+      const created = await pool.query(
+        `INSERT INTO customer_subscriptions
+          (customer_name, customer_email, user_id, plan_id, address_id, grind, frequency,
+           status, started_at, shipping_cost, billing_amount, shipping_method,
+           shipping_recipient, shipping_phone, checkout_order_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'pendente', CURRENT_DATE, $8, $9, $10, $11, $12, $13)
+         RETURNING id`,
+        [req.user.name, req.user.email, req.user.id, planId, addressId, grind, frequency,
+          shipping.cost, billingAmount, shippingMethod, recipient, phone, orderId],
+      )
+      return res.status(201).json({ id: created.rows[0].id, simulated: true })
+    } catch (error) {
+      return sendError(res, error, 'Não foi possível criar a assinatura demonstrativa.')
+    }
+  })
+
+  router.post('/me/:id/demo-confirm', async (req, res) => {
+    try {
+      const id = readId(req.params.id)
+      const result = await pool.query(
+        `UPDATE customer_subscriptions
+         SET status = 'ativa',
+             next_renewal = COALESCE(next_renewal, CURRENT_DATE)
+         WHERE id = $1 AND user_id = $2 AND status = 'pendente'
+         RETURNING id, status`,
+        [id, req.user.id],
+      )
+      if (result.rowCount === 0) {
+        return res.status(409).json({ message: 'Esta assinatura já foi confirmada ou não está disponível.' })
+      }
+      return res.json({ ...result.rows[0], simulated: true })
+    } catch (error) {
+      return sendError(res, error, 'Não foi possível confirmar a assinatura demonstrativa.')
+    }
+  })
+
+  router.get('/me/:id', async (req, res) => {
+    try {
+      const id = readId(req.params.id)
+      const result = await pool.query(
+        `SELECT subscription.id, subscription.plan_id, subscription.address_id,
+          subscription.grind, subscription.frequency, subscription.status,
+          subscription.started_at, subscription.next_renewal, subscription.canceled_at,
+          subscription.billing_amount, subscription.shipping_cost, subscription.shipping_method,
+          subscription.mercadopago_checkout_url,
+          plan.name AS plan_name, plan.price AS plan_price, plan.description AS plan_description
+         FROM customer_subscriptions AS subscription
+         JOIN subscription_plans AS plan ON plan.id = subscription.plan_id
+         WHERE subscription.id = $1 AND subscription.user_id = $2`,
+        [id, req.user.id],
+      )
+      if (result.rowCount === 0) return res.status(404).json({ message: 'Assinatura não encontrada.' })
+      return res.json(result.rows[0])
+    } catch (error) {
+      if (error.statusCode) return res.status(error.statusCode).json({ message: error.message })
+      console.error('Could not load customer subscription:', error.message)
+      return res.status(500).json({ message: 'Não foi possível carregar sua assinatura.' })
+    }
+  })
+
+  router.post('/me/mercadopago-checkout', async (req, res) => {
+    let subscriptionId
+    try {
+      const planId = readId(req.body?.plan_id)
+      const addressId = readId(req.body?.address_id)
+      const orderId = req.body?.order_id ? readId(req.body.order_id) : null
+      const frequency = req.body?.frequency
+      if (!frequencies.has(frequency)) throw validationError('Selecione uma frequência válida.')
+      const grind = typeof req.body?.grind === 'string' ? req.body.grind.trim() : ''
+      if (!grind || grind.length > 50) throw validationError('Selecione uma moagem válida.')
+      const shippingMethod = req.body?.shipping_method
+      if (!['pac', 'sedex'].includes(shippingMethod)) throw validationError('Selecione uma opção de frete válida.')
+      const recipient = typeof req.body?.shipping_recipient === 'string' ? req.body.shipping_recipient.trim() : ''
+      const phone = typeof req.body?.shipping_phone === 'string' ? req.body.shipping_phone.trim() : ''
+      if (!recipient || recipient.length > 150 || !phone || phone.length > 20) {
+        throw validationError('Informe um destinatário e telefone válidos para a entrega recorrente.')
+      }
+
+      const [planResult, addressResult] = await Promise.all([
+        pool.query('SELECT id, name, price FROM subscription_plans WHERE id = $1 AND active = TRUE', [planId]),
+        pool.query('SELECT id, cep FROM addresses WHERE id = $1 AND user_id = $2', [addressId, req.user.id]),
+      ])
+      if (planResult.rowCount === 0) throw validationError('O plano selecionado não está mais disponível.')
+      if (addressResult.rowCount === 0) throw validationError('Salve um endereço na sua conta para a entrega recorrente.')
+      if (orderId) {
+        const orderResult = await pool.query(
+          "SELECT id FROM orders WHERE id = $1 AND user_id = $2 AND status = 'pending'",
+          [orderId, req.user.id],
+        )
+        if (orderResult.rowCount === 0) throw validationError('O pedido de produtos associado não está disponível.')
+      }
+      const existing = await pool.query(
+        `SELECT id, mercadopago_checkout_url
+         FROM customer_subscriptions
+         WHERE user_id = $1 AND plan_id = $2 AND address_id = $3
+           AND grind = $4 AND frequency = $5
+           AND checkout_order_id IS NOT DISTINCT FROM $6
+           AND status = 'pendente' AND mercadopago_plan_id IS NOT NULL
+           AND mercadopago_checkout_url IS NOT NULL
+         ORDER BY id DESC LIMIT 1`,
+        [req.user.id, planId, addressId, grind, frequency, orderId],
+      )
+      if (existing.rowCount) {
+        return res.json({
+          id: existing.rows[0].id,
+          init_point: existing.rows[0].mercadopago_checkout_url,
+        })
+      }
+
+      const shippingQuote = await getShippingOptions(pool, addressResult.rows[0].cep, [{
+        item_type: 'subscription',
+        plan_id: planId,
+        quantity: 1,
+        grind,
+        frequency,
+      }])
+      const shipping = shippingQuote.options.find((option) => option.id === shippingMethod)
+      const plan = planResult.rows[0]
+      const billingAmount = Math.round((Number(plan.price) + shipping.cost + Number.EPSILON) * 100) / 100
+      if (billingAmount <= 0) throw validationError('O total recorrente precisa ser maior que zero.')
+      const created = await pool.query(
+        `INSERT INTO customer_subscriptions
+          (customer_name, customer_email, user_id, plan_id, address_id, grind, frequency,
+           status, started_at, shipping_cost, billing_amount, shipping_method,
+           shipping_recipient, shipping_phone, checkout_order_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'pendente', CURRENT_DATE, $8, $9, $10, $11, $12, $13)
+         RETURNING id`,
+        [req.user.name, req.user.email, req.user.id, planId, addressId, grind, frequency,
+          shipping.cost, billingAmount, shippingMethod, recipient, phone, orderId],
+      )
+      subscriptionId = created.rows[0].id
+
+      const frontendUrl = getFrontendUrl(paymentOptions.environment)
+      const backUrl = orderId
+        ? new URL(`/pagamento?order_id=${orderId}&subscription_id=${subscriptionId}`, frontendUrl).toString()
+        : new URL(`/confirmacao/assinatura/${subscriptionId}`, frontendUrl).toString()
+      const checkout = await createSubscriptionPlan({
+        name: `${plan.name} · ${frequency}`,
+        frequency,
+        amount: billingAmount,
+        backUrl,
+      }, paymentOptions)
+      await pool.query(
+        `UPDATE customer_subscriptions SET mercadopago_plan_id = $1, mercadopago_checkout_url = $2
+         WHERE id = $3 AND user_id = $4`,
+        [checkout.id, checkout.initPoint, subscriptionId, req.user.id],
+      )
+      return res.status(201).json({ id: subscriptionId, init_point: checkout.initPoint })
+    } catch (error) {
+      if (subscriptionId) {
+        try {
+          await pool.query(
+            "UPDATE customer_subscriptions SET status = 'cancelada', canceled_at = NOW() WHERE id = $1 AND status = 'pendente'",
+            [subscriptionId],
+          )
+        } catch (cleanupError) {
+          console.error('Could not cancel incomplete Mercado Pago subscription:', cleanupError.message)
+        }
+      }
+      if (error.statusCode) return res.status(error.statusCode).json({ message: error.message })
+      console.error('Could not create Mercado Pago subscription:', error.message)
+      return res.status(500).json({ message: 'Não foi possível iniciar a assinatura pelo Mercado Pago.' })
+    }
+  })
+
   router.patch('/:id', async (req, res) => {
     const id = Number(req.params.id)
     if (!Number.isInteger(id) || id < 1) return res.status(400).json({ message: 'Identificador inválido.' })
+    let currentSubscription
+    try {
+      const current = await pool.query(
+        `        SELECT id, status, frequency, billing_amount, mercadopago_preapproval_id
+         FROM customer_subscriptions WHERE id = $1 AND user_id = $2`,
+        [id, req.user.id],
+      )
+      if (current.rowCount === 0) return res.status(404).json({ message: 'Assinatura não encontrada.' })
+      currentSubscription = current.rows[0]
+    } catch (error) {
+      console.error('Could not load customer subscription for update:', error.message)
+      return res.status(500).json({ message: 'Não foi possível atualizar sua assinatura.' })
+    }
+
     const updates = []
     const values = []
     if (Object.hasOwn(req.body || {}, 'grind')) {
@@ -314,12 +548,43 @@ function createCustomerSubscriptionsRouter(pool) {
     }
     if (!updates.length) return res.status(400).json({ message: 'Informe ao menos uma alteração.' })
 
+    const changesStatus = Object.hasOwn(req.body || {}, 'status')
+    const changesFrequency = Object.hasOwn(req.body || {}, 'frequency')
+    if ((changesStatus || changesFrequency) && currentSubscription.status === 'pendente'
+      && !currentSubscription.mercadopago_preapproval_id) {
+      return res.status(409).json({ message: 'Aguarde a autorização do Mercado Pago antes de alterar a assinatura.' })
+    }
+    if (currentSubscription.mercadopago_preapproval_id && (changesStatus || changesFrequency)) {
+      const providerUpdate = {}
+      if (changesFrequency) {
+        providerUpdate.auto_recurring = {
+          ...frequencySettings(req.body.frequency),
+          transaction_amount: Number(currentSubscription.billing_amount),
+          currency_id: 'BRL',
+        }
+      }
+      if (changesStatus) {
+        providerUpdate.status = {
+          ativa: 'authorized',
+          pausada: 'paused',
+          cancelada: 'cancelled',
+        }[statuses.get(req.body.status)]
+      }
+      try {
+        await updatePreapproval(currentSubscription.mercadopago_preapproval_id, providerUpdate, paymentOptions)
+      } catch (error) {
+        console.error('Could not update Mercado Pago subscription:', error.message)
+        return res.status(error.statusCode || 502).json({ message: 'Não foi possível atualizar a assinatura no Mercado Pago.' })
+      }
+    }
+
     values.push(id, req.user.id)
     try {
       const result = await pool.query(
         `UPDATE customer_subscriptions SET ${updates.join(', ')}
          WHERE id = $${values.length - 1} AND user_id = $${values.length}
-         RETURNING id, plan_id, grind, frequency, status, started_at, next_renewal, canceled_at`,
+         RETURNING id, plan_id, grind, frequency, status, started_at, next_renewal, canceled_at,
+           billing_amount, shipping_cost, shipping_method`,
         values,
       )
       if (result.rowCount === 0) return res.status(404).json({ message: 'Assinatura não encontrada.' })
@@ -333,10 +598,10 @@ function createCustomerSubscriptionsRouter(pool) {
   return router
 }
 
-module.exports = function createSubscriptionRouters(pool) {
+module.exports = function createSubscriptionRouters(pool, options = {}) {
   return {
     plans: createPlansRouter(pool),
     subscriptions: createSubscriptionsRouter(pool),
-    customers: createCustomerSubscriptionsRouter(pool),
+    customers: createCustomerSubscriptionsRouter(pool, options),
   }
 }

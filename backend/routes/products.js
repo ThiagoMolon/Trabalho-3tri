@@ -28,6 +28,9 @@ function buildProductValues(body) {
     variety,
     score,
     sensory_notes,
+    acidity,
+    bitterness,
+    sweetness,
     stock = 0,
     active = true,
   } = body || {}
@@ -54,10 +57,22 @@ function buildProductValues(body) {
   const weight = optionalNumber(weight_grams, 'peso', true)
   const coffeeAltitude = isCoffee ? optionalNumber(altitude, 'altitude', true) : null
   const coffeeScore = isCoffee ? optionalNumber(score, 'nota') : null
+  const coffeeAcidity = isCoffee ? optionalNumber(acidity, 'acidez') : null
+  const coffeeBitterness = isCoffee ? optionalNumber(bitterness, 'amargor') : null
+  const coffeeSweetness = isCoffee ? optionalNumber(sweetness, 'doçura') : null
   const stockCount = optionalNumber(stock, 'estoque', true)
 
   if (weight !== null && weight < 0) throw new Error('O peso não pode ser negativo.')
   if (coffeeAltitude !== null && coffeeAltitude < 0) throw new Error('A altitude não pode ser negativa.')
+  for (const [label, value] of [
+    ['acidez', coffeeAcidity],
+    ['amargor', coffeeBitterness],
+    ['doçura', coffeeSweetness],
+  ]) {
+    if (value !== null && (value < 0 || value > 10)) {
+      throw new Error(`A ${label} deve estar entre 0 e 10.`)
+    }
+  }
   if (stockCount === null || stockCount < 0) throw new Error('O estoque deve ser um número inteiro igual ou maior que zero.')
 
   return [
@@ -73,6 +88,9 @@ function buildProductValues(body) {
     isCoffee ? variety || null : null,
     coffeeScore,
     notes.map((note) => note.trim()).filter(Boolean),
+    coffeeAcidity,
+    coffeeBitterness,
+    coffeeSweetness,
     stockCount,
     active,
   ]
@@ -98,8 +116,9 @@ function createProductsRouter(pool, requireAdmin) {
       const result = await pool.query(
         `INSERT INTO products (
           name, category, description, price, weight_grams, image_url,
-          origin, producer, altitude, variety, score, sensory_notes, stock, active
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+          origin, producer, altitude, variety, score, sensory_notes,
+          acidity, bitterness, sweetness, stock, active
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
         RETURNING id, name, category, price, stock, active`,
         buildProductValues(req.body),
       )
@@ -126,8 +145,9 @@ function createProductsRouter(pool, requireAdmin) {
           name = $1, category = $2, description = $3, price = $4,
           weight_grams = $5, image_url = $6, origin = $7, producer = $8,
           altitude = $9, variety = $10, score = $11, sensory_notes = $12,
-          stock = $13, active = $14
-        WHERE id = $15
+          acidity = $13, bitterness = $14, sweetness = $15,
+          stock = $16, active = $17
+        WHERE id = $18
         RETURNING id, name, category, price, stock, active`,
         [...buildProductValues(req.body), id],
       )

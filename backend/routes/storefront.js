@@ -8,6 +8,7 @@ function createStorefrontRouter(pool) {
       const result = await pool.query(`
         SELECT id, name, category, description, price, weight_grams, image_url,
           origin, producer, altitude, variety, score, sensory_notes,
+          acidity, bitterness, sweetness,
           (stock > 0) AS in_stock
         FROM products
         WHERE active = TRUE

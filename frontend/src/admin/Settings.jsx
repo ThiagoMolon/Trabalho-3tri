@@ -5,11 +5,10 @@ import { defaultSettings } from './mockData'
 function Settings() {
   const [store, setStore] = useState(defaultSettings.store)
   const [shipping, setShipping] = useState(defaultSettings.shipping)
-  const [payments, setPayments] = useState(defaultSettings.payments)
   const [notice, setNotice] = useState('')
 
   function handleTest() {
-    setNotice('Teste executado: conexões de loja, envio e gateway verificadas (simulado).')
+    setNotice('Este teste é demonstrativo e não valida credenciais do Mercado Pago.')
   }
 
   function handleSave(event) {
@@ -22,7 +21,7 @@ function Settings() {
       <PageHeading
         eyebrow="SISTEMA"
         title="Configurações"
-        description="Loja, envio, gateway de pagamento e equipe administrativa."
+        description="Loja, envio e equipe administrativa."
         actions={(
           <button className="ghost-button" type="button" onClick={handleTest}>
             Teste
@@ -69,26 +68,9 @@ function Settings() {
 
         <section className="settings-card">
           <h2>Pagamentos / Gateway</h2>
-          <p className="settings-card-copy">Provedor e chave de API.</p>
-          <label className="field">
-            <span>Provedor</span>
-            <select value={payments.provider} onChange={(event) => setPayments((current) => ({ ...current, provider: event.target.value }))}>
-              <option value="stripe">Stripe</option>
-              <option value="mercadopago">Mercado Pago</option>
-            </select>
-          </label>
-          <label className="field">
-            <span>Chave de API</span>
-            <input
-              type="password"
-              value={payments.apiKey}
-              onChange={(event) => setPayments((current) => ({ ...current, apiKey: event.target.value }))}
-              placeholder="sk_live_… ou APP_USR-…"
-              autoComplete="off"
-            />
-          </label>
+          <p className="settings-card-copy">O checkout usa Mercado Pago Checkout Pro e cobranças recorrentes.</p>
           <p className="settings-warning" role="note">
-            Valide as chaves em ambiente de teste antes de usá-las em produção.
+            Configure MP_ACCESS_TOKEN, MP_WEBHOOK_SECRET e FRONTEND_URL no ambiente do backend. Nunca cole credenciais nesta tela ou no frontend.
           </p>
         </section>
 

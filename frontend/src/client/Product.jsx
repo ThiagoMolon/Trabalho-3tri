@@ -138,7 +138,7 @@ function ProductInfo({ product, onAdd }) {
         </section>
       )}
       <p className="product-info__cart-note">
-        O carrinho fica salvo neste navegador. O checkout e o pagamento ainda não estão disponíveis.
+        O carrinho fica salvo neste navegador. Os pagamentos são processados pelo Mercado Pago.
       </p>
     </div>
   )

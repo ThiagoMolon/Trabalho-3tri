@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import api from '../services/api'
+import { buildTasteStoreUrl } from '../services/tasteProfile'
 import { PublicFooter } from './Storefront'
 import Navbar from '../components/Navbar'
 
@@ -160,7 +161,8 @@ function TasteFinder() {
                 <button className="taste-back-button taste-save-retry" type="button" onClick={() => saveProfile(profile)}>Tentar novamente</button>
               </div>
             )}
-            <button className="taste-primary-button" type="button" onClick={restart}>Refazer quiz</button>
+            <a className="taste-primary-button taste-shop-link" href={buildTasteStoreUrl(profile)}>Ver cafés compatíveis</a>
+            <button className="taste-back-button taste-restart-button" type="button" onClick={restart}>Refazer quiz</button>
           </section>
         ) : (
           <section className="taste-card" aria-labelledby="taste-question-title">

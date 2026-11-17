@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import api from '../../services/api'
 import Navbar from '../../components/Navbar'
-import { clearCart, readCart, serializeCartItems } from '../../services/cart'
-import { clearDelivery, clearShippingQuote, readDelivery } from '../../services/checkout'
+import { readCart, serializeCartItems } from '../../services/cart'
+import { readDelivery } from '../../services/checkout'
 import { currencyFormatter } from '../../admin/formatters'
 import { PublicFooter } from '../../client/Storefront'
 import '../../styles/Paymant.scss'
@@ -32,12 +32,22 @@ function CheckoutSteps() {
 export default function CheckoutPaymentPage() {
   const cart = useMemo(() => readCart(), [])
   const savedDelivery = useMemo(() => readDelivery(), [])
+  const search = new URLSearchParams(window.location.search)
+  const initialOrderId = Number(search.get('order_id'))
+  const initialSubscriptionId = Number(search.get('subscription_id'))
   const [user, setUser] = useState(null)
-  const [orderId, setOrderId] = useState(null)
+  const [orderId, setOrderId] = useState(Number.isInteger(initialOrderId) && initialOrderId > 0 ? initialOrderId : null)
+  const [subscriptionId, setSubscriptionId] = useState(
+    Number.isInteger(initialSubscriptionId) && initialSubscriptionId > 0 ? initialSubscriptionId : null,
+  )
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState(cart.error || savedDelivery.error)
   const [loginChecked, setLoginChecked] = useState(false)
-  const subtotal = cart.items.reduce((sum, item) => sum + Number(item.price) * item.quantity, 0)
+  const products = cart.items.filter((item) => item.item_type !== 'subscription')
+  const subscriptions = cart.items.filter((item) => item.item_type === 'subscription')
+  const productSubtotal = products.reduce((sum, item) => sum + Number(item.price) * item.quantity, 0)
+  const subscriptionSubtotal = subscriptions.reduce((sum, item) => sum + Number(item.price) * item.quantity, 0)
+  const subtotal = productSubtotal + subscriptionSubtotal
   const shippingCost = Number(savedDelivery.delivery?.shippingCost || 0)
   const total = subtotal + shippingCost
 
@@ -47,7 +57,11 @@ export default function CheckoutPaymentPage() {
       .then(({ data }) => { if (active) setUser(data.user) })
       .catch((requestError) => {
         if (active && requestError.response?.status !== 401) {
-          setError(requestError.response?.data?.message || 'Não foi possível validar sua conta.')
+          if (requestError.response?.status >= 500) {
+            setError('')
+          } else {
+            setError(requestError.response?.data?.message || 'Não foi possível validar sua conta.')
+          }
         }
       })
       .finally(() => { if (active) setLoginChecked(true) })
@@ -59,9 +73,10 @@ export default function CheckoutPaymentPage() {
     setError('')
     try {
       let id = orderId
-      if (!id) {
+      let activeSubscriptionId = subscriptionId
+      if (products.length && !id) {
         const { data } = await api.post('/orders', {
-          items: serializeCartItems(cart.items),
+          items: serializeCartItems(products),
           shipping_method: savedDelivery.delivery.shippingMethod,
           shipping_address: savedDelivery.delivery.address,
           address_id: savedDelivery.delivery.addressId || undefined,
@@ -69,30 +84,49 @@ export default function CheckoutPaymentPage() {
         id = data.id
         setOrderId(id)
       }
-      await api.patch(`/orders/${id}/simulate-pay`)
-      const failures = [clearCart(), clearDelivery(), clearShippingQuote()].filter(Boolean)
-      if (failures.length) {
-        setError(failures.join(' '))
-        return
+
+      if (subscriptions.length && !activeSubscriptionId) {
+        if (subscriptions.length !== 1 || subscriptions[0].quantity !== 1) {
+          throw new Error('Faça uma autorização recorrente por vez e deixe a quantidade do plano em 1.')
+        }
+        const subscription = subscriptions[0]
+        const { data } = await api.post('/subscriptions/me/demo-checkout', {
+          plan_id: subscription.plan_id,
+          frequency: subscription.frequency,
+          grind: subscription.grind,
+          address_id: savedDelivery.delivery.addressId,
+          shipping_method: savedDelivery.delivery.shippingMethod,
+          shipping_recipient: savedDelivery.delivery.address.recipient,
+          shipping_phone: savedDelivery.delivery.address.phone,
+          order_id: id || undefined,
+        })
+        setSubscriptionId(data.id)
+        activeSubscriptionId = data.id
       }
-      window.location.assign(`/confirmacao/${id}`)
+
+      window.location.assign(activeSubscriptionId && !id
+        ? `/confirmacao/assinatura/${activeSubscriptionId}`
+        : id
+          ? `/confirmacao/${id}${activeSubscriptionId ? `?subscription_id=${activeSubscriptionId}` : ''}`
+          : '/confirmacao')
     } catch (requestError) {
-      setError(requestError.response?.data?.message || 'Não foi possível concluir o pedido.')
+      setError(requestError.response?.data?.message || requestError.message || 'Não foi possível concluir a compra demonstrativa.')
     } finally {
       setSubmitting(false)
     }
   }
 
   const delivery = savedDelivery.delivery
-  const canPay = cart.items.length > 0 && delivery && user && loginChecked
+  const invalidSubscriptionSelection = subscriptions.length > 1 || subscriptions.some((item) => item.quantity !== 1)
+  const canPay = cart.items.length > 0 && delivery && user && loginChecked && !invalidSubscriptionSelection
 
   return (
     <div className="public-site checkout">
       <Navbar activePage="cart" />
       <main className="checkout__main">
         <header className="checkout__heading">
-          <h1>Pagamento</h1>
-          <p>Ambiente acadêmico: o botão abaixo registra um pagamento simulado, sem cobrança real.</p>
+          <h1>Checkout demonstrativo</h1>
+          <p>Esta compra é apenas uma simulação. Nenhum pagamento será cobrado ou processado.</p>
         </header>
         <CheckoutSteps />
         {(error || cart.error || savedDelivery.error) && <p className="checkout__error" role="alert">{error || cart.error || savedDelivery.error}</p>}
@@ -124,10 +158,16 @@ export default function CheckoutPaymentPage() {
                 <a href="/destino">Alterar endereço ou frete</a>
               </section>
               <section className="payment-card">
-                <h2 className="payment-card__title">Pagamento de demonstração</h2>
-                <p role="status">Não informe dados de cartão. Nenhum gateway está conectado; a ação confirma o pedido apenas no banco de dados.</p>
-                {cart.items.some((item) => item.item_type === 'subscription') && (
-                  <p>As assinaturas incluídas serão ativadas como demonstração após a confirmação.</p>
+                <h2 className="payment-card__title">Modo demonstrativo</h2>
+                <p role="status">
+                  {products.length && subscriptions.length
+                    ? 'A assinatura e os produtos serão registrados como uma compra simulada, sem qualquer cobrança.'
+                    : subscriptions.length
+                      ? 'A assinatura será ativada apenas para demonstração; não haverá cobranças recorrentes reais.'
+                      : 'Ao concluir, o pedido será confirmado apenas como demonstração.'}
+                </p>
+                {invalidSubscriptionSelection && (
+                  <p className="checkout__error" role="alert">Faça uma autorização recorrente por vez e deixe a quantidade do plano em 1.</p>
                 )}
               </section>
             </div>
@@ -141,14 +181,26 @@ export default function CheckoutPaymentPage() {
                   </li>
                 ))}
               </ul>
-              <p className="order-summary__item"><span>Subtotal</span><span>{currencyFormatter.format(subtotal)}</span></p>
-              <p className="order-summary__item"><span>Frete · {delivery.shippingOption?.label || delivery.shippingMethod.toUpperCase()}</span><span>{currencyFormatter.format(shippingCost)}</span></p>
-              <p className="order-summary__total">
-                <span className="order-summary__total-label">Total</span>
-                <span className="order-summary__total-value">{currencyFormatter.format(total)}</span>
-              </p>
+              {products.length && subscriptions.length ? (
+                <>
+                  <p className="order-summary__item"><span>Produtos (pagamento único)</span><span>{currencyFormatter.format(productSubtotal)}</span></p>
+                  <p className="order-summary__item"><span>Assinatura por ciclo</span><span>{currencyFormatter.format(subscriptionSubtotal)} + frete recorrente</span></p>
+                  <p role="note">Serão criadas cobranças e entregas separadas; o frete de cada uma é calculado no servidor.</p>
+                </>
+              ) : (
+                <>
+                  <p className="order-summary__item"><span>Subtotal</span><span>{currencyFormatter.format(subtotal)}</span></p>
+                  <p className="order-summary__item"><span>Frete · {delivery.shippingOption?.label || delivery.shippingMethod.toUpperCase()}</span><span>{currencyFormatter.format(shippingCost)}</span></p>
+                  <p className="order-summary__total">
+                    <span className="order-summary__total-label">{subscriptions.length ? 'Por ciclo' : 'Total'}</span>
+                    <span className="order-summary__total-value">{currencyFormatter.format(total)}</span>
+                  </p>
+                </>
+              )}
               <button type="button" className="order-summary__button" disabled={!canPay || submitting} onClick={completeOrder}>
-                {submitting ? 'Processando...' : orderId ? 'Tentar confirmação novamente' : 'Confirmar pedido (simulação)'}
+                {submitting
+                  ? 'Preparando...'
+                  : 'Concluir compra demonstrativa'}
               </button>
               <a href="/carrinho" className="order-summary__link">Voltar ao carrinho</a>
             </aside>

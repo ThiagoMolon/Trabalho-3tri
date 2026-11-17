@@ -299,6 +299,7 @@ function AdminGate() {
 function App() {
   const path = window.location.pathname.replace(/\/+$/, '') || '/'
   const productMatch = path.match(/^\/produto\/([^/]+)$/)
+  const subscriptionConfirmationMatch = path.match(/^\/confirmacao\/assinatura\/(\d+)$/)
   const confirmationMatch = path.match(/^\/confirmacao\/(\d+)$/)
   if (path === '/') return <Landpage />
   if (path === '/admin') return <AdminGate />
@@ -308,7 +309,13 @@ function App() {
   if (path === '/carrinho') return <CartPage />
   if (path === '/destino') return <DestinationPage />
   if (path === '/pagamento') return <CheckoutPaymentPage />
-  if (confirmationMatch) return <ConfirmationPage orderId={confirmationMatch[1]} />
+  if (subscriptionConfirmationMatch) {
+    return <ConfirmationPage subscriptionId={subscriptionConfirmationMatch[1]} />
+  }
+  if (confirmationMatch) {
+    const subscriptionId = new URLSearchParams(window.location.search).get('subscription_id')
+    return <ConfirmationPage orderId={confirmationMatch[1]} subscriptionId={subscriptionId} />
+  }
   if (path === '/confirmacao') return <ConfirmationPage />
   if (path === '/quiz') return <TasteFinder />
   if (path === '/login') return <AuthPage mode="login" />

@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import api from '../services/api'
 import { addCartItem, addSubscriptionCartItem, readCart, removeCartItem, serializeCartItems, updateCartItem } from '../services/cart'
 import { clearShippingQuote, readShippingQuote, saveShippingQuote } from '../services/checkout'
+import { filterProductsForTaste, hasSensoryProfile, readTasteProfile } from '../services/tasteProfile'
 import usePublicData from '../services/usePublicData'
 import { currencyFormatter } from '../admin/formatters'
 import Navbar from '../components/Navbar'
@@ -79,7 +80,7 @@ function CartCheckoutSteps() {
   )
 }
 
-function ProductCard({ product, onAdd }) {
+function ProductCard({ product, onAdd, profileFilterActive = false }) {
   const notes = Array.isArray(product.sensory_notes) ? product.sensory_notes.join(', ') : ''
   return (
     <article className="store-product-card">
@@ -90,6 +91,7 @@ function ProductCard({ product, onAdd }) {
           <h2>{product.name}</h2>
           {product.weight_grams && <p>{product.weight_grams} g</p>}
           {notes && <p className="product-notes">{notes}</p>}
+          {profileFilterActive && !hasSensoryProfile(product) && <p className="taste-profile-missing">Perfil sensorial não cadastrado</p>}
           {product.score && <p className="product-score">Pontuação: {product.score}</p>}
           <strong>{currencyFormatter.format(Number(product.price))}</strong>
           {!product.in_stock && <span className="stock-note">Fora de estoque</span>}
@@ -110,6 +112,7 @@ function CartFeedback({ message }) {
 
 function Storefront() {
   const { data: products, loading, error } = usePublicData('/vitrine/produtos', 'Não foi possível carregar os cafés.')
+  const tasteProfile = useMemo(() => readTasteProfile(window.location.search), [])
   const [search, setSearch] = useState('')
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState(() => {
@@ -121,7 +124,7 @@ function Storefront() {
 
   const visibleProducts = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase('pt-BR')
-    return products
+    return filterProductsForTaste(products, tasteProfile)
       .filter((product) => category === 'todos'
         || (category === 'cafes' && ['graos', 'moidos'].includes(product.category))
         || product.category === category)
@@ -136,7 +139,7 @@ function Storefront() {
         : sort === 'score'
           ? Number(b.score || 0) - Number(a.score || 0)
           : a.name.localeCompare(b.name, 'pt-BR'))
-  }, [products, category, query, sort])
+  }, [products, category, query, sort, tasteProfile])
 
   function addProduct(product) {
     const result = addCartItem(product)
@@ -168,6 +171,13 @@ function Storefront() {
           </label>
         </aside>
         <section className="store-results" aria-label="Catálogo de cafés">
+          {tasteProfile && (
+            <p className="taste-filter-notice" role="status">
+              Perfil do Taste Finder: acidez {tasteProfile.acidity}, amargor {tasteProfile.bitterness} e doçura {tasteProfile.sweetness}.
+              {' '}Exibindo cafés a até 1 ponto por característica; cafés sem perfil cadastrado também permanecem visíveis.
+              {' '}<a href="/loja">Limpar filtro</a>
+            </p>
+          )}
           <div className="results-toolbar">
             <span>{visibleProducts.length} {visibleProducts.length === 1 ? 'produto' : 'produtos'}</span>
             <label>Ordenar por
@@ -180,7 +190,14 @@ function Storefront() {
           </div>
           <StoreState loading={loading} error={error} empty={products.length === 0 ? 'Nenhum produto disponível no momento.' : visibleProducts.length === 0 ? 'Nenhum café encontrado com esses filtros.' : ''}>
             <div className="store-product-grid">
-              {visibleProducts.map((product) => <ProductCard key={product.id} product={product} onAdd={addProduct} />)}
+              {visibleProducts.map((product) => (
+                <ProductCard
+                  key={product.id}
+                  product={product}
+                  onAdd={addProduct}
+                  profileFilterActive={Boolean(tasteProfile)}
+                />
+              ))}
             </div>
           </StoreState>
           <CartFeedback message={feedback} />
@@ -249,7 +266,7 @@ function ProductDetails({ productId }) {
             </div>
             <CartFeedback message={feedback} />
             {!product.in_stock && <p className="stock-note">Fora de estoque</p>}
-            <p className="local-cart-note">O carrinho fica salvo neste navegador. O frete é estimado e o pagamento é simulado.</p>
+            <p className="local-cart-note">O carrinho fica salvo neste navegador. O frete é estimado e a compra funciona em modo demonstrativo.</p>
           </div>
         </section>
       </main>
@@ -297,7 +314,7 @@ function SubscriptionPlans() {
             </div>
           </StoreState>
           {feedback && <p className="inline-feedback" role="status">{feedback}</p>}
-          <p className="plans-disclaimer">A contratação é registrada como assinatura de demonstração e o pagamento é simulado.</p>
+          <p className="plans-disclaimer">Os planos são demonstrativos. Nenhuma assinatura real ou cobrança recorrente será criada.</p>
         </section>
       </main>
       <PublicFooter />
@@ -426,16 +443,25 @@ function CartPage() {
                 <p className="cart-items-caption">{items.length} {items.length === 1 ? 'item' : 'itens'} selecionados para seu pedido</p>
                 {items.map((item) => (
                   <article className="cart-item" key={`${item.item_type || 'product'}-${item.product_id || item.plan_id}-${item.grind}-${item.frequency || ''}`}>
-                    {item.item_type === 'subscription' ? <div className="product-image-empty"><span>Clube</span></div> : <ProductImage product={item} />}
+                    {item.item_type === 'subscription' ? (
+                      <div className="product-image">
+                        <div className="product-image-empty"><span>Clube</span></div>
+                      </div>
+                    ) : <ProductImage product={item} />}
                     <div className="cart-item-copy">
                       <h2>{item.name}</h2>
                       <p>{item.item_type === 'subscription' ? `Assinatura ${item.frequency} · ` : item.weight_grams ? `${item.weight_grams} g · ` : ''}{item.grind}</p>
                     </div>
                     <div className="cart-item-controls">
                       <strong>{currencyFormatter.format(Number(item.price) * item.quantity)}</strong>
-                      <label htmlFor={`quantity-${item.product_id || item.plan_id}-${item.grind}`}>Quantidade</label>
-                      <select id={`quantity-${item.product_id || item.plan_id}-${item.grind}`} value={item.quantity} onChange={(event) => updateItem(item, Number(event.target.value))}>
-                        {Array.from({ length: 10 }, (_, index) => index + 1).map((quantity) => <option key={quantity} value={quantity}>{quantity}</option>)}
+                      <label htmlFor={`quantity-${item.product_id || item.plan_id}-${item.grind}`}>
+                        {item.item_type === 'subscription' ? 'Quantidade (uma autorização por vez)' : 'Quantidade'}
+                      </label>
+                      <select id={`quantity-${item.product_id || item.plan_id}-${item.grind}`} value={item.quantity}
+                        onChange={(event) => updateItem(item, Number(event.target.value))}>
+                        {item.item_type === 'subscription' && item.quantity !== 1 && <option value={item.quantity}>{item.quantity}</option>}
+                        {(item.item_type === 'subscription' ? [1] : Array.from({ length: 10 }, (_, index) => index + 1))
+                          .map((quantity) => <option key={quantity} value={quantity}>{quantity}</option>)}
                       </select>
                       <button className="text-button" type="button" onClick={() => removeItem(item)}>Remover</button>
                     </div>
@@ -484,7 +510,7 @@ function CartPage() {
                 Continuar para entrega
               </a>
               <a href="/loja">Continuar comprando</a>
-              <p className="local-cart-note">Frete calculado por estimativa de faixa de CEP e peso; pagamento simulado no checkout.</p>
+              <p className="local-cart-note">Frete calculado por estimativa de faixa de CEP e peso. Produtos e assinaturas são pagos separadamente pelo Mercado Pago.</p>
             </aside>
           </div>
         )}

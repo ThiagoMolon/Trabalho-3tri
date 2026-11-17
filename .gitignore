@@ -159,5 +159,7 @@ docker-compose.yml
 !.dev.vars.example
 *.md
 */tests
+!backend/tests/
+!frontend/tests/
 
 

@@ -11,6 +11,9 @@ export const initialProduct = {
   variety: '',
   score: '',
   sensory_notes: '',
+  acidity: '',
+  bitterness: '',
+  sweetness: '',
   stock: '0',
   active: true,
 }
@@ -29,6 +32,9 @@ export function productToForm(item) {
     variety: item.variety || '',
     score: item.score == null ? '' : String(item.score),
     sensory_notes: (item.sensory_notes || []).join(', '),
+    acidity: item.acidity == null ? '' : String(item.acidity),
+    bitterness: item.bitterness == null ? '' : String(item.bitterness),
+    sweetness: item.sweetness == null ? '' : String(item.sweetness),
     stock: String(item.stock),
     active: item.active,
   }

@@ -94,6 +94,8 @@ export default function DestinationPage() {
 
   const selectedOption = quote?.options.find((option) => option.id === shippingMethod)
   const subtotal = cart.items.reduce((total, item) => total + Number(item.price) * item.quantity, 0)
+  const hasSubscription = cart.items.some((item) => item.item_type === 'subscription')
+  const hasProducts = cart.items.some((item) => item.item_type !== 'subscription')
 
   function updateAddress(field, value) {
     setAddress((current) => ({ ...current, [field]: value }))
@@ -181,7 +183,7 @@ export default function DestinationPage() {
     }
     setFeedback('')
     let addressId = selectedAddressId ? Number(selectedAddressId) : null
-    if (!addressId && saveAddress) {
+    if (!addressId && (saveAddress || hasSubscription)) {
       try {
         const { data } = await api.post('/addresses', address)
         addressId = data.id
@@ -320,8 +322,11 @@ export default function DestinationPage() {
                   </div>
                   {!selectedAddressId && (
                     <label className="destination-default">
-                      <input type="checkbox" checked={saveAddress} onChange={(event) => setSaveAddress(event.target.checked)} />
-                      <span>Salvar este endereço na minha conta</span>
+                      <input type="checkbox" checked={hasSubscription || saveAddress} disabled={hasSubscription}
+                        onChange={(event) => setSaveAddress(event.target.checked)} />
+                      <span>{hasSubscription
+                        ? 'Este endereço será salvo para as entregas recorrentes da assinatura'
+                        : 'Salvar este endereço na minha conta'}</span>
                     </label>
                   )}
                   <button className="destination-calculate" type="button" onClick={calculateShipping}
@@ -357,11 +362,16 @@ export default function DestinationPage() {
               {selectedOption && <div className="destination-summary__line">
                 <span>Frete - {selectedOption.label}</span><span>{currencyFormatter.format(Number(selectedOption.cost))}</span>
               </div>}
+              {hasSubscription && hasProducts && (
+                <p className="destination-summary__line">
+                  Produtos e assinatura serão pagos separadamente; o frete será recalculado para cada cobrança.
+                </p>
+              )}
               <div className="destination-summary__total">
                 <strong>Total</strong><strong>{currencyFormatter.format(subtotal + Number(selectedOption?.cost || 0))}</strong>
               </div>
               <button className="destination-summary__button" type="submit" form="destination-form" disabled={!user || loadingAccount}>
-                Continuar pagamento
+                Continuar para checkout demonstrativo
               </button>
               <a className="destination-summary__link" href="/carrinho">Voltar ao carrinho</a>
             </aside>

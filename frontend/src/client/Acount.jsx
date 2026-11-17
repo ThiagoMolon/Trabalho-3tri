@@ -117,7 +117,10 @@ function SubscriptionCard({ subscription, onUpdate }) {
     <article className="account-subscription-card">
       <h3>{subscription.plan_name}</h3>
       <p>{subscription.plan_description}</p>
-      <p>{subscription.status} · {subscription.plan_price != null ? `R$ ${Number(subscription.plan_price).toFixed(2)}` : ''}</p>
+      <p>{subscription.status === 'pendente' ? 'Aguardando confirmação demonstrativa' : subscription.status}
+        {' · '}{subscription.billing_amount != null
+          ? `${currencyFormatter.format(Number(subscription.billing_amount))} por ciclo`
+          : subscription.plan_price != null ? currencyFormatter.format(Number(subscription.plan_price)) : ''}</p>
       <p>Próxima renovação: {subscription.next_renewal ? new Date(`${subscription.next_renewal.slice(0, 10)}T00:00:00`).toLocaleDateString('pt-BR') : 'não definida'}</p>
       <div className="account-subscription-preferences">
         <label>Moagem
@@ -126,20 +129,22 @@ function SubscriptionCard({ subscription, onUpdate }) {
           </select>
         </label>
         <label>Frequência
-          <select value={frequency} onChange={(event) => setFrequency(event.target.value)}>
+          <select value={frequency} disabled={subscription.status === 'pendente' || subscription.status === 'cancelada'}
+            onChange={(event) => setFrequency(event.target.value)}>
             <option value="semanal">Semanal</option><option value="quinzenal">Quinzenal</option>
             <option value="mensal">Mensal</option><option value="bimestral">A cada 2 meses</option>
           </select>
         </label>
-        <button type="button" disabled={saving || subscription.status === 'cancelada'} onClick={() => update({ grind, frequency })}>Salvar alterações</button>
+        <button type="button" disabled={saving || subscription.status === 'cancelada' || subscription.status === 'pendente'}
+          onClick={() => update({ grind, frequency })}>Salvar alterações</button>
       </div>
       <div className="account-subscription-actions">
-        {subscription.status !== 'cancelada' && (
+        {subscription.status !== 'cancelada' && subscription.status !== 'pendente' && (
           <button type="button" disabled={saving} onClick={() => update({ status: subscription.status === 'ativa' ? 'pausada' : 'ativa' })}>
             {subscription.status === 'ativa' ? 'Pausar' : 'Reativar'}
           </button>
         )}
-        {subscription.status !== 'cancelada' && (
+        {subscription.status !== 'cancelada' && subscription.status !== 'pendente' && (
           <button type="button" disabled={saving} onClick={() => update({ status: 'cancelada' })}>Cancelar assinatura</button>
         )}
       </div>
