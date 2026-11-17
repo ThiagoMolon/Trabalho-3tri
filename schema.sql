@@ -62,39 +62,50 @@ CREATE TABLE roast_batches (
 CREATE TABLE subscription_plans (
     id            SERIAL PRIMARY KEY,
     name          VARCHAR(150) NOT NULL,
-    weight_grams  INT NOT NULL,
+    description   TEXT,
     price         NUMERIC(10,2) NOT NULL CHECK (price >= 0),   -- por entrega
-    active        BOOLEAN NOT NULL DEFAULT TRUE
+    frequency     VARCHAR(20) NOT NULL
+                  CHECK (frequency IN ('semanal', 'mensal', 'bimestral')),
+    active        BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE subscriptions (
+CREATE TABLE subscription_plan_products (
+    plan_id     INT NOT NULL REFERENCES subscription_plans(id) ON DELETE CASCADE,
+    product_id  INT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    PRIMARY KEY (plan_id, product_id)
+);
+
+CREATE TABLE customer_subscriptions (
     id                       SERIAL PRIMARY KEY,
-    user_id                  INT NOT NULL REFERENCES users(id),
+    customer_name            VARCHAR(200) NOT NULL,
+    customer_email           VARCHAR(254) NOT NULL,
+    user_id                  INT REFERENCES users(id) ON DELETE CASCADE,
     plan_id                  INT NOT NULL REFERENCES subscription_plans(id),
-    product_id               INT REFERENCES products(id),      -- café escolhido
-    address_id               INT NOT NULL REFERENCES addresses(id),
-    grind                    VARCHAR(50) NOT NULL,             -- grãos inteiros, espresso, filtro...
-    frequency                VARCHAR(10) NOT NULL
-                             CHECK (frequency IN ('weekly', 'biweekly', 'monthly')),
-    status                   VARCHAR(10) NOT NULL DEFAULT 'active'
-                             CHECK (status IN ('active', 'paused', 'canceled')),
-    next_renewal_date        DATE,
-    gateway_subscription_id  VARCHAR(100),                     -- id no Stripe/Mercado Pago
-    started_at               TIMESTAMP NOT NULL DEFAULT NOW(),
-    canceled_at              TIMESTAMP                         -- base do cálculo de churn
+    address_id               INT REFERENCES addresses(id) ON DELETE SET NULL,
+    grind                    VARCHAR(50),                      -- grãos inteiros, espresso, filtro...
+    frequency                VARCHAR(20)
+                             CHECK (frequency IN ('semanal', 'quinzenal', 'mensal', 'bimestral')),
+    status                   VARCHAR(20) NOT NULL DEFAULT 'ativa'
+                             CHECK (status IN ('ativa', 'pausada', 'cancelada')),
+    next_renewal             DATE,
+    started_at               DATE NOT NULL DEFAULT CURRENT_DATE,
+    canceled_at              TIMESTAMPTZ,
+    created_at               TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- 4. PEDIDOS ------------------------------------------------------------
 CREATE TABLE orders (
     id                  SERIAL PRIMARY KEY,
     user_id             INT NOT NULL REFERENCES users(id),
+    address_id          INT REFERENCES addresses(id) ON DELETE SET NULL,
     shipping_address    JSONB NOT NULL,        -- cópia do endereço no momento da compra
     subtotal            NUMERIC(10,2) NOT NULL,
     shipping_cost       NUMERIC(10,2) NOT NULL DEFAULT 0,
     total               NUMERIC(10,2) NOT NULL,
     status              VARCHAR(15) NOT NULL DEFAULT 'pending'
                         CHECK (status IN ('pending', 'paid', 'shipped', 'delivered', 'canceled')),
-    payment_gateway     VARCHAR(15) CHECK (payment_gateway IN ('stripe', 'mercadopago')),
+    payment_gateway     VARCHAR(15) CHECK (payment_gateway IN ('stripe', 'mercadopago', 'simulation')),
     gateway_payment_id  VARCHAR(100) UNIQUE,   -- também evita processar webhook duplicado
     tracking_code       VARCHAR(60),
     label_url           VARCHAR(500),
@@ -105,9 +116,11 @@ CREATE TABLE order_items (
     id               SERIAL PRIMARY KEY,
     order_id         INT NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
     product_id       INT REFERENCES products(id),
-    subscription_id  INT REFERENCES subscriptions(id),   -- preenchido se for assinatura
+    plan_id          INT REFERENCES subscription_plans(id),
+    subscription_id  INT REFERENCES customer_subscriptions(id),   -- preenchido após pagamento simulado
     batch_id         INT REFERENCES roast_batches(id),
     grind            VARCHAR(50),
+    frequency        VARCHAR(20),
     quantity         INT NOT NULL CHECK (quantity > 0),
     unit_price       NUMERIC(10,2) NOT NULL,
     is_recurring     BOOLEAN NOT NULL DEFAULT FALSE
@@ -132,8 +145,8 @@ CREATE TABLE quiz_options (
 -- ÍNDICES ---------------------------------------------------------------
 CREATE INDEX idx_addresses_user      ON addresses(user_id);
 CREATE INDEX idx_products_category   ON products(category);
-CREATE INDEX idx_subs_user           ON subscriptions(user_id);
-CREATE INDEX idx_subs_status         ON subscriptions(status);
+CREATE INDEX idx_subs_user           ON customer_subscriptions(user_id);
+CREATE INDEX idx_subs_status         ON customer_subscriptions(status);
 CREATE INDEX idx_orders_user         ON orders(user_id);
 CREATE INDEX idx_order_items_order   ON order_items(order_id);
 

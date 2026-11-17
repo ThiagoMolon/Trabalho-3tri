@@ -248,9 +248,95 @@ function createSubscriptionsRouter(pool) {
   return router
 }
 
+function createCustomerSubscriptionsRouter(pool) {
+  const router = express.Router()
+  const frequencies = new Set(['semanal', 'quinzenal', 'mensal', 'bimestral'])
+  const statuses = new Map([
+    ['active', 'ativa'],
+    ['paused', 'pausada'],
+    ['canceled', 'cancelada'],
+    ['ativa', 'ativa'],
+    ['pausada', 'pausada'],
+    ['cancelada', 'cancelada'],
+  ])
+
+  router.get('/me', async (req, res) => {
+    try {
+      const result = await pool.query(
+        `SELECT subscription.id, subscription.plan_id, subscription.address_id,
+          subscription.grind, subscription.frequency, subscription.status,
+          subscription.started_at, subscription.next_renewal, subscription.canceled_at,
+          plan.name AS plan_name, plan.price AS plan_price, plan.description AS plan_description
+         FROM customer_subscriptions AS subscription
+         JOIN subscription_plans AS plan ON plan.id = subscription.plan_id
+         WHERE subscription.user_id = $1
+         ORDER BY CASE subscription.status WHEN 'ativa' THEN 0 WHEN 'pausada' THEN 1 ELSE 2 END,
+          subscription.created_at DESC, subscription.id DESC`,
+        [req.user.id],
+      )
+      return res.json(result.rows)
+    } catch (error) {
+      console.error('Could not list customer subscriptions:', error.message)
+      return res.status(500).json({ message: 'Não foi possível carregar suas assinaturas.' })
+    }
+  })
+
+  router.patch('/:id', async (req, res) => {
+    const id = Number(req.params.id)
+    if (!Number.isInteger(id) || id < 1) return res.status(400).json({ message: 'Identificador inválido.' })
+    const updates = []
+    const values = []
+    if (Object.hasOwn(req.body || {}, 'grind')) {
+      if (typeof req.body.grind !== 'string' || !req.body.grind.trim() || req.body.grind.trim().length > 50) {
+        return res.status(400).json({ message: 'Selecione uma moagem válida.' })
+      }
+      values.push(req.body.grind.trim())
+      updates.push(`grind = $${values.length}`)
+    }
+    if (Object.hasOwn(req.body || {}, 'frequency')) {
+      if (!frequencies.has(req.body.frequency)) return res.status(400).json({ message: 'Selecione uma frequência válida.' })
+      values.push(req.body.frequency)
+      updates.push(`frequency = $${values.length}`)
+      updates.push(`next_renewal = CASE $${values.length}
+        WHEN 'semanal' THEN CURRENT_DATE + 7
+        WHEN 'quinzenal' THEN CURRENT_DATE + 14
+        WHEN 'bimestral' THEN CURRENT_DATE + 60
+        ELSE CURRENT_DATE + 30
+      END`)
+    }
+    if (Object.hasOwn(req.body || {}, 'status')) {
+      const status = statuses.get(req.body.status)
+      if (!status) return res.status(400).json({ message: 'Selecione um status válido.' })
+      values.push(status)
+      updates.push(`status = $${values.length}`)
+      values.push(status === 'cancelada')
+      updates.push(`canceled_at = CASE WHEN $${values.length} THEN COALESCE(canceled_at, NOW()) ELSE NULL END`)
+    }
+    if (!updates.length) return res.status(400).json({ message: 'Informe ao menos uma alteração.' })
+
+    values.push(id, req.user.id)
+    try {
+      const result = await pool.query(
+        `UPDATE customer_subscriptions SET ${updates.join(', ')}
+         WHERE id = $${values.length - 1} AND user_id = $${values.length}
+         RETURNING id, plan_id, grind, frequency, status, started_at, next_renewal, canceled_at`,
+        values,
+      )
+      if (result.rowCount === 0) return res.status(404).json({ message: 'Assinatura não encontrada.' })
+      return res.json(result.rows[0])
+    } catch (error) {
+      console.error('Could not update customer subscription:', error.message)
+      return res.status(500).json({ message: 'Não foi possível atualizar sua assinatura.' })
+    }
+  })
+
+  return router
+}
+
 module.exports = function createSubscriptionRouters(pool) {
   return {
     plans: createPlansRouter(pool),
     subscriptions: createSubscriptionsRouter(pool),
+    customers: createCustomerSubscriptionsRouter(pool),
   }
 }

@@ -32,6 +32,11 @@
 .destination-field label, .destination-address-type legend { font-size: 12px; }
 .destination-field input, .destination-field select { width: 100%; height: 38px; min-width: 0; padding: 0 10px; border: 1px solid #a98d74; border-radius: 4px; background: $brand-white; color: $brand-roast; font-size: 12px; }
 .destination-field input:focus, .destination-field select:focus { outline: 2px solid $brand-sand; outline-offset: 1px; }
+.destination-field > select { width: 100%; height: 38px; padding: 0 10px; border: 1px solid #a98d74; border-radius: 4px; background: $brand-white; color: $brand-roast; font-size: 12px; }
+.destination-cep-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; }
+.destination-cep-row button, .destination-calculate { min-height: 38px; padding: 0 10px; border: 1px solid $brand-roast; border-radius: 4px; background: $brand-roast; color: $brand-white; font-size: 12px; }
+.destination-calculate { margin-top: 14px; }
+.destination-calculate:disabled, .destination-summary__button:disabled { cursor: not-allowed; opacity: .6; }
 .destination-address-type { display: flex; flex-wrap: wrap; gap: 0; margin-top: 18px !important; }
 .destination-address-type legend { width: 100%; margin-bottom: 7px; }
 .destination-address-type label { position: relative; }

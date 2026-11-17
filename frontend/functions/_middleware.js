@@ -6,11 +6,17 @@ const apiPathPrefixes = [
   '/quiz/',
   '/planos/',
   '/assinaturas/',
+  '/subscriptions/',
+  '/addresses/',
+  '/shipping/',
+  '/orders/',
 ]
 
 export async function onRequest({ request, env = {}, next }) {
   const url = new URL(request.url)
   const isApiRequest = url.pathname === '/health'
+    || url.pathname === '/addresses'
+    || url.pathname === '/orders'
     || apiPathPrefixes.some((prefix) => url.pathname.startsWith(prefix))
 
   if (!isApiRequest) return next()

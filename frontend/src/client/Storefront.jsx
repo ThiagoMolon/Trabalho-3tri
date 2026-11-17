@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react'
-import { addCartItem, readCart, removeCartItem, updateCartItem } from '../services/cart'
+import api from '../services/api'
+import { addCartItem, addSubscriptionCartItem, readCart, removeCartItem, serializeCartItems, updateCartItem } from '../services/cart'
+import { clearShippingQuote, readShippingQuote, saveShippingQuote } from '../services/checkout'
 import usePublicData from '../services/usePublicData'
 import { currencyFormatter } from '../admin/formatters'
 import Navbar from '../components/Navbar'
@@ -247,7 +249,7 @@ function ProductDetails({ productId }) {
             </div>
             <CartFeedback message={feedback} />
             {!product.in_stock && <p className="stock-note">Fora de estoque</p>}
-            <p className="local-cart-note">O carrinho fica salvo neste navegador. O checkout e o pagamento ainda não estão disponíveis.</p>
+            <p className="local-cart-note">O carrinho fica salvo neste navegador. O frete é estimado e o pagamento é simulado.</p>
           </div>
         </section>
       </main>
@@ -258,6 +260,13 @@ function ProductDetails({ productId }) {
 
 function SubscriptionPlans() {
   const { data: plans, loading, error } = usePublicData('/vitrine/planos', 'Não foi possível carregar os planos.')
+  const [feedback, setFeedback] = useState('')
+
+  function addPlan(plan, grind, frequency) {
+    const result = addSubscriptionCartItem(plan, 1, grind, frequency)
+    setFeedback(result || `${plan.name} adicionado ao carrinho.`)
+  }
+
   return (
     <div className="public-site">
       <Navbar activePage="plans" />
@@ -282,14 +291,13 @@ function SubscriptionPlans() {
                     <strong>O que acompanha</strong>
                     <ul>{plan.products.map((product) => <li key={product.id}>{product.name}</li>)}</ul>
                   </div>
-                  <button className="plan-unavailable" type="button" disabled title="Contratação online indisponível">
-                    Contratação online indisponível
-                  </button>
+                  <SubscriptionPlanControls plan={plan} onAdd={addPlan} />
                 </article>
               ))}
             </div>
           </StoreState>
-          <p className="plans-disclaimer">As assinaturas ainda não podem ser contratadas online.</p>
+          {feedback && <p className="inline-feedback" role="status">{feedback}</p>}
+          <p className="plans-disclaimer">A contratação é registrada como assinatura de demonstração e o pagamento é simulado.</p>
         </section>
       </main>
       <PublicFooter />
@@ -297,10 +305,81 @@ function SubscriptionPlans() {
   )
 }
 
+function SubscriptionPlanControls({ plan, onAdd }) {
+  const defaultFrequency = ['semanal', 'quinzenal', 'mensal', 'bimestral'].includes(plan.frequency)
+    ? plan.frequency
+    : 'mensal'
+  const [frequency, setFrequency] = useState(defaultFrequency)
+  const [grind, setGrind] = useState(grinds[0])
+
+  return (
+    <div className="plan-subscribe-controls">
+      <label>Frequência
+        <select value={frequency} onChange={(event) => setFrequency(event.target.value)}>
+          <option value="semanal">Semanal</option>
+          <option value="quinzenal">Quinzenal</option>
+          <option value="mensal">Mensal</option>
+          <option value="bimestral">A cada 2 meses</option>
+        </select>
+      </label>
+      <label>Moagem
+        <select value={grind} onChange={(event) => setGrind(event.target.value)}>
+          {grinds.map((option) => <option key={option}>{option}</option>)}
+        </select>
+      </label>
+      <button className="gold-button" type="button" onClick={() => onAdd(plan, grind, frequency)}>
+        Assinar
+      </button>
+    </div>
+  )
+}
+
 function CartPage() {
   const [items, setItems] = useState(() => readCart().items)
   const [error, setError] = useState(() => readCart().error)
+  const [cep, setCep] = useState(() => readShippingQuote().quote?.cep || '')
+  const [shippingQuote, setShippingQuote] = useState(() => readShippingQuote().quote)
+  const [shippingMethod, setShippingMethod] = useState(() => readShippingQuote().quote?.selected_method || 'pac')
+  const [calculating, setCalculating] = useState(false)
+  const [shippingError, setShippingError] = useState('')
+  const [shippingNotice, setShippingNotice] = useState('')
   const subtotal = items.reduce((total, item) => total + Number(item.price) * item.quantity, 0)
+  const selectedShipping = shippingQuote?.options.find((option) => option.id === shippingMethod)
+
+  async function calculateShipping(event) {
+    event.preventDefault()
+    setCalculating(true)
+    setShippingError('')
+    setShippingNotice('')
+    try {
+      const { data } = await api.post('/shipping/calculate', {
+        cep,
+        items: serializeCartItems(items),
+      })
+      const quote = { ...data, selected_method: shippingMethod }
+      const saveError = saveShippingQuote(quote)
+      if (saveError) {
+        setShippingError(saveError)
+        return
+      }
+      setShippingQuote(quote)
+      setShippingNotice(`Frete calculado para o CEP ${data.cep.slice(0, 5)}-${data.cep.slice(5)}.`)
+    } catch (requestError) {
+      setShippingError(requestError.response?.data?.message || 'Não foi possível calcular o frete.')
+    } finally {
+      setCalculating(false)
+    }
+  }
+
+  function selectShipping(method) {
+    setShippingMethod(method)
+    if (shippingQuote) {
+      const updatedQuote = { ...shippingQuote, selected_method: method }
+      setShippingQuote(updatedQuote)
+      const saveError = saveShippingQuote(updatedQuote)
+      if (saveError) setShippingError(saveError)
+    }
+  }
 
   function refreshCart() {
     const result = readCart()
@@ -309,19 +388,21 @@ function CartPage() {
   }
 
   function updateItem(item, quantity) {
-    const result = updateCartItem(item.product_id, item.grind, quantity)
+    const result = updateCartItem(item, quantity)
     if (result) setError(result)
     else {
       setError('')
+      setShippingQuote(null)
       refreshCart()
     }
   }
 
   function removeItem(item) {
-    const result = removeCartItem(item.product_id, item.grind)
+    const result = removeCartItem(item)
     if (result) setError(result)
     else {
       setError('')
+      setShippingQuote(null)
       refreshCart()
     }
   }
@@ -342,18 +423,18 @@ function CartPage() {
             <div className="cart-items">
               <section className="cart-items-card" aria-labelledby="cart-title">
                 <h1 id="cart-title">Seu carrinho</h1>
-                <p className="cart-items-caption">{items.length} {items.length === 1 ? 'item' : 'itens'} · cafés selecionados para seu pedido</p>
+                <p className="cart-items-caption">{items.length} {items.length === 1 ? 'item' : 'itens'} selecionados para seu pedido</p>
                 {items.map((item) => (
-                  <article className="cart-item" key={`${item.product_id}-${item.grind}`}>
-                    <ProductImage product={item} />
+                  <article className="cart-item" key={`${item.item_type || 'product'}-${item.product_id || item.plan_id}-${item.grind}-${item.frequency || ''}`}>
+                    {item.item_type === 'subscription' ? <div className="product-image-empty"><span>Clube</span></div> : <ProductImage product={item} />}
                     <div className="cart-item-copy">
                       <h2>{item.name}</h2>
-                      <p>{item.weight_grams ? `${item.weight_grams} g · ` : ''}{item.grind}</p>
+                      <p>{item.item_type === 'subscription' ? `Assinatura ${item.frequency} · ` : item.weight_grams ? `${item.weight_grams} g · ` : ''}{item.grind}</p>
                     </div>
                     <div className="cart-item-controls">
                       <strong>{currencyFormatter.format(Number(item.price) * item.quantity)}</strong>
-                      <label htmlFor={`quantity-${item.product_id}-${item.grind}`}>Quantidade</label>
-                      <select id={`quantity-${item.product_id}-${item.grind}`} value={item.quantity} onChange={(event) => updateItem(item, Number(event.target.value))}>
+                      <label htmlFor={`quantity-${item.product_id || item.plan_id}-${item.grind}`}>Quantidade</label>
+                      <select id={`quantity-${item.product_id || item.plan_id}-${item.grind}`} value={item.quantity} onChange={(event) => updateItem(item, Number(event.target.value))}>
                         {Array.from({ length: 10 }, (_, index) => index + 1).map((quantity) => <option key={quantity} value={quantity}>{quantity}</option>)}
                       </select>
                       <button className="text-button" type="button" onClick={() => removeItem(item)}>Remover</button>
@@ -365,10 +446,45 @@ function CartPage() {
             <aside className="cart-summary">
               <h2>Resumo do pedido</h2>
               <p><span>Subtotal</span><strong>{currencyFormatter.format(subtotal)}</strong></p>
-              <p className="cart-summary-shipping">Frete calculado na etapa de entrega.</p>
-              <a className="gold-button button-link" href="/destino">Continuar para entrega</a>
+              <form className="cart-shipping-form" onSubmit={calculateShipping}>
+                <label htmlFor="cart-cep">Calcular frete por CEP</label>
+                <div>
+                  <input id="cart-cep" inputMode="numeric" maxLength="9" value={cep}
+                    onChange={(event) => {
+                      setCep(event.target.value.replace(/\D/g, '').slice(0, 8))
+                      setShippingQuote(null)
+                      const clearError = clearShippingQuote()
+                      if (clearError) setShippingError(clearError)
+                    }}
+                    placeholder="00000000" required />
+                  <button type="submit" disabled={calculating || items.length === 0}>
+                    {calculating ? 'Calculando...' : 'Calcular'}
+                  </button>
+                </div>
+              </form>
+              {shippingError && <p className="feedback-error" role="alert">{shippingError}</p>}
+              {shippingNotice && <p className="inline-feedback" role="status">{shippingNotice}</p>}
+              {shippingQuote && (
+                <fieldset className="cart-shipping-options">
+                  <legend>Opções de entrega</legend>
+                  {shippingQuote.options.map((option) => (
+                    <label key={option.id}>
+                      <input type="radio" name="cart-shipping" checked={shippingMethod === option.id}
+                        onChange={() => selectShipping(option.id)} />
+                      <span>{option.label} · {option.min_days} a {option.max_days} dias úteis</span>
+                      <strong>{currencyFormatter.format(Number(option.cost))}</strong>
+                    </label>
+                  ))}
+                </fieldset>
+              )}
+              {selectedShipping && <p><span>Frete</span><strong>{currencyFormatter.format(Number(selectedShipping.cost))}</strong></p>}
+              <p className="cart-summary-total"><span>Total</span><strong>{currencyFormatter.format(subtotal + Number(selectedShipping?.cost || 0))}</strong></p>
+              <a className="gold-button button-link" href={shippingQuote ? '/destino' : undefined}
+                aria-disabled={!shippingQuote} onClick={(event) => { if (!shippingQuote) event.preventDefault() }}>
+                Continuar para entrega
+              </a>
               <a href="/loja">Continuar comprando</a>
-              <p className="local-cart-note">Esta demonstração não cria pedidos nem processa pagamentos.</p>
+              <p className="local-cart-note">Frete calculado por estimativa de faixa de CEP e peso; pagamento simulado no checkout.</p>
             </aside>
           </div>
         )}

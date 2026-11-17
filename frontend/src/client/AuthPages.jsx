@@ -23,7 +23,11 @@ function AuthPage({ mode }) {
         email: form.email,
         password: form.password,
       })
-      window.location.assign(!isRegistering && data.user.role === 'admin' ? '/admin' : '/conta')
+      const requestedPath = new URLSearchParams(window.location.search).get('next')
+      const safeReturnPath = requestedPath?.startsWith('/') && !requestedPath.startsWith('//')
+        ? requestedPath
+        : '/conta'
+      window.location.assign(data.user.role === 'admin' ? '/admin' : safeReturnPath)
     } catch (requestError) {
       setError(
         requestError.response?.data?.message

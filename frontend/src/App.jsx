@@ -299,6 +299,7 @@ function AdminGate() {
 function App() {
   const path = window.location.pathname.replace(/\/+$/, '') || '/'
   const productMatch = path.match(/^\/produto\/([^/]+)$/)
+  const confirmationMatch = path.match(/^\/confirmacao\/(\d+)$/)
   if (path === '/') return <Landpage />
   if (path === '/admin') return <AdminGate />
   if (path === '/loja') return <Storefront />
@@ -307,6 +308,7 @@ function App() {
   if (path === '/carrinho') return <CartPage />
   if (path === '/destino') return <DestinationPage />
   if (path === '/pagamento') return <CheckoutPaymentPage />
+  if (confirmationMatch) return <ConfirmationPage orderId={confirmationMatch[1]} />
   if (path === '/confirmacao') return <ConfirmationPage />
   if (path === '/quiz') return <TasteFinder />
   if (path === '/login') return <AuthPage mode="login" />

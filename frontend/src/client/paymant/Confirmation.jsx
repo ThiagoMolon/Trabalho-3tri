@@ -1,21 +1,25 @@
+import { useEffect, useState } from 'react'
+import api from '../../services/api'
 import Navbar from '../../components/Navbar'
 import { currencyFormatter } from '../../admin/formatters'
-import { readCart } from '../../services/cart'
-import { getShippingOptions, readDelivery } from '../../services/checkout'
 import { PublicFooter } from '../Storefront'
 import '../../styles/Confirmation.scss'
 
 const steps = ['Carrinho', 'Destino', 'Pagamento', 'Confirmação']
+const statusLabels = {
+  pending: 'Aguardando pagamento',
+  paid: 'Pago (simulação)',
+  shipped: 'Enviado',
+  delivered: 'Entregue',
+  canceled: 'Cancelado',
+}
 
 function CheckoutProgress() {
   return (
     <nav className="confirmation-progress" aria-label="Etapas da compra">
       {steps.map((step, index) => (
         <span className="confirmation-progress__step" key={step}>
-          <span
-            className={`confirmation-progress__number${index < 3 ? ' is-done' : ' is-current'}`}
-            aria-hidden="true"
-          >
+          <span className={`confirmation-progress__number${index < 3 ? ' is-done' : ' is-current'}`} aria-hidden="true">
             {index < 3 ? '✓' : index + 1}
           </span>
           <span aria-current={index === 3 ? 'step' : undefined}>{step}</span>
@@ -26,116 +30,89 @@ function CheckoutProgress() {
   )
 }
 
-function OrderSummary({ items, delivery }) {
-  const subtotal = items.reduce((total, item) => total + Number(item.price) * item.quantity, 0)
-  const shipping = delivery ? getShippingOptions()[delivery.shippingMethod].price : 0
+export default function ConfirmationPage({ orderId }) {
+  const [order, setOrder] = useState(null)
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(Boolean(orderId))
 
-  return (
-    <aside className="confirmation-summary" aria-labelledby="confirmation-summary-title">
-      <h2 id="confirmation-summary-title">Resumo do pedido</h2>
-      <ul>
-        {items.map((item) => (
-          <li key={`${item.product_id}-${item.grind}`}>
-            <span>{item.name} × {item.quantity}</span>
-            <span>{currencyFormatter.format(Number(item.price) * item.quantity)}</span>
-          </li>
-        ))}
-      </ul>
-      <p><span>Subtotal</span><span>{currencyFormatter.format(subtotal)}</span></p>
-      {delivery && (
-        <p>
-          <span>Frete - {getShippingOptions()[delivery.shippingMethod].label}</span>
-          <span>{currencyFormatter.format(shipping)}</span>
-        </p>
-      )}
-      <div className="confirmation-summary__total">
-        <strong>Total estimado</strong>
-        <strong>{currencyFormatter.format(subtotal + shipping)}</strong>
-      </div>
-      <p className="confirmation-summary__notice">Prévia visual: nenhum pedido foi criado e nenhum pagamento foi processado.</p>
-      <a className="confirmation-summary__button" href="/carrinho">Voltar ao carrinho</a>
-      <a className="confirmation-summary__link" href="/loja">Voltar à loja</a>
-    </aside>
-  )
-}
+  useEffect(() => {
+    let active = true
+    if (!orderId) {
+      return () => { active = false }
+    }
+    api.get(`/orders/${orderId}`)
+      .then(({ data }) => { if (active) setOrder(data) })
+      .catch((requestError) => {
+        if (active) setError(requestError.response?.data?.message || 'Não foi possível carregar o pedido.')
+      })
+      .finally(() => { if (active) setLoading(false) })
+    return () => { active = false }
+  }, [orderId])
 
-export default function ConfirmationPage() {
-  const { items, error } = readCart()
-  const { delivery, error: deliveryError } = readDelivery()
-  const address = delivery?.address
-  const shippingLabel = delivery ? getShippingOptions()[delivery.shippingMethod].label : ''
+  const address = order?.shipping_address || {}
+  const shippingLabel = address.shipping_label || ''
 
   return (
     <div className="public-site confirmation-page">
       <Navbar activePage="cart" />
       <main className="confirmation-main">
         <header className="confirmation-heading">
-          <p>Finalizar compra · Etapa 4 de 4 · Prévia</p>
+          <p>Finalizar compra · Etapa 4 de 4</p>
           <CheckoutProgress />
         </header>
-        {(error || deliveryError) && <p className="confirmation-feedback" role="alert">{error || deliveryError}</p>}
-        {items.length === 0 ? (
+        {loading && <p className="confirmation-feedback" role="status">Carregando os dados do pedido...</p>}
+        {error && <p className="confirmation-feedback" role="alert">{error}</p>}
+        {!loading && !error && !order && (
           <section className="confirmation-empty">
-            <h1>Seu carrinho está vazio</h1>
-            <p>Adicione cafés para visualizar a prévia da confirmação.</p>
-            <a href="/loja">Explorar cafés</a>
+            <h1>Nenhum pedido selecionado</h1>
+            <p>Confirme o pedido pelo checkout para consultar seus dados nesta tela.</p>
+            <a href="/loja">Voltar à loja</a>
           </section>
-        ) : (
+        )}
+        {order && (
           <>
             <header className="confirmation-hero">
               <span className="confirmation-hero__icon" aria-hidden="true">✓</span>
-              <p>DEMONSTRAÇÃO · SEM PEDIDO</p>
-              <h1>Prévia da confirmação</h1>
-              <p>Esta tela demonstra a etapa final do checkout. Nenhum pedido foi criado ou confirmado.</p>
+              <p>PEDIDO #{order.id}</p>
+              <h1>{order.status === 'paid' ? 'Pedido confirmado' : 'Pedido registrado'}</h1>
+              <p>Status: {statusLabels[order.status] || order.status}</p>
             </header>
-
             <div className="confirmation-layout">
               <div className="confirmation-column">
-                <section className="confirmation-card confirmation-next-steps" aria-labelledby="confirmation-next-title">
-                  <p className="confirmation-overline">Próximos passos</p>
-                  <h2 id="confirmation-next-title">Acompanhe seu café</h2>
-                  <ol>
-                    <li>
-                      <span>1</span>
-                      <div><strong>Pagamento</strong><p>O pagamento ainda não está configurado.</p></div>
-                    </li>
-                    <li>
-                      <span>2</span>
-                      <div><strong>Torra e moagem</strong><p>O pedido só será preparado após uma integração de pagamento.</p></div>
-                    </li>
-                    <li>
-                      <span>3</span>
-                      <div><strong>Envio</strong><p>Nenhum código de rastreio foi gerado.</p></div>
-                    </li>
-                    <li>
-                      <span>4</span>
-                      <div><strong>Entrega</strong><p>{shippingLabel ? `${shippingLabel} · prazo estimado para demonstração` : 'Frete não informado'}</p></div>
-                    </li>
-                  </ol>
+                <section className="confirmation-card confirmation-next-steps">
+                  <p className="confirmation-overline">Itens do pedido</p>
+                  <ul>
+                    {order.items.map((item) => (
+                      <li key={item.id}>
+                        <span>{item.name} × {item.quantity}{item.grind ? ` · ${item.grind}` : ''}{item.frequency ? ` · ${item.frequency}` : ''}</span>
+                        <strong>{currencyFormatter.format(Number(item.unit_price) * item.quantity)}</strong>
+                      </li>
+                    ))}
+                  </ul>
+                  {order.status === 'paid' && <p>Pagamento registrado em modo de simulação. Nenhuma cobrança real foi feita.</p>}
+                  {order.status !== 'paid' && <p>O pedido está registrado, mas ainda aguarda confirmação de pagamento.</p>}
                 </section>
-
-                <div className="confirmation-details">
-                  <section className="confirmation-card confirmation-info">
-                    <p className="confirmation-overline">Entrega</p>
-                    {address ? (
-                      <>
-                        <strong>{address.recipient}</strong>
-                        <p>{address.street}, {address.number}{address.complement ? ` · ${address.complement}` : ''}<br />
-                          {address.neighborhood} · {address.city}/{address.state}<br />
-                          CEP {address.postalCode}</p>
-                      </>
-                    ) : (
-                      <p>Endereço ainda não informado. <a href="/destino">Adicionar endereço</a></p>
-                    )}
-                  </section>
-                  <section className="confirmation-card confirmation-info">
-                    <p className="confirmation-overline">Pagamento</p>
-                    <strong>Não configurado</strong>
-                    <p>Nenhum dado de pagamento foi coletado.</p>
-                  </section>
-                </div>
+                <section className="confirmation-card confirmation-info">
+                  <p className="confirmation-overline">Endereço de entrega</p>
+                  <strong>{address.recipient || 'Destinatário'}</strong>
+                  <p>{address.street}, {address.number}{address.complement ? ` · ${address.complement}` : ''}<br />
+                    {address.neighborhood} · {address.city}/{address.state}<br />
+                    CEP {address.cep || address.postalCode}</p>
+                  {shippingLabel && <p>{shippingLabel} · {address.shipping_min_days} a {address.shipping_max_days} dias úteis</p>}
+                </section>
               </div>
-              <OrderSummary items={items} delivery={delivery} />
+              <aside className="confirmation-summary" aria-labelledby="confirmation-summary-title">
+                <h2 id="confirmation-summary-title">Resumo do pedido</h2>
+                <p><span>Número</span><strong>#{order.id}</strong></p>
+                <p><span>Data</span><span>{new Date(order.created_at).toLocaleString('pt-BR')}</span></p>
+                <p><span>Subtotal</span><span>{currencyFormatter.format(Number(order.subtotal))}</span></p>
+                <p><span>Frete · {shippingLabel}</span><span>{currencyFormatter.format(Number(order.shipping_cost))}</span></p>
+                <div className="confirmation-summary__total">
+                  <strong>Total</strong><strong>{currencyFormatter.format(Number(order.total))}</strong>
+                </div>
+                <a className="confirmation-summary__button" href="/conta#entregas">Ver meus pedidos</a>
+                <a className="confirmation-summary__link" href="/loja">Voltar à loja</a>
+              </aside>
             </div>
           </>
         )}

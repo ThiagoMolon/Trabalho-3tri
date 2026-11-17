@@ -3,9 +3,12 @@
 ## Loja pública
 
 - Catálogo: `/loja`; detalhes de cada item: `/produto/:id`.
-- Planos de assinatura: `/clube`; Taste Finder: `/quiz`; carrinho local: `/carrinho`; prévia demonstrativa do checkout: `/pagamento`.
+- Planos de assinatura: `/clube`; Taste Finder: `/quiz`; carrinho: `/carrinho`; checkout: `/destino`, `/pagamento` e `/confirmacao/:id`.
 - As páginas públicas leem apenas produtos e planos ativos pelas rotas `/vitrine/produtos` e `/vitrine/planos`. O gerenciamento continua restrito às rotas administrativas existentes.
-- O carrinho é armazenado no navegador. A rota `/pagamento` mostra uma prévia com os itens do carrinho, mas não cria pedidos nem processa pagamentos; contratação online também não está disponível.
+- O carrinho é armazenado no navegador; endereços, pedidos, estoque e assinaturas são persistidos no PostgreSQL. O checkout exige login, calcula frete estimado por CEP/peso e salva o endereço no perfil quando selecionado.
+- O botão de pagamento registra um pagamento explicitamente simulado: não há integração com Stripe/Mercado Pago nem cobrança real. O pedido fica salvo, o estoque é baixado na criação, e a confirmação mostra os dados persistidos.
+- Rotas transacionais autenticadas: `/addresses` (GET/POST/DELETE), `/orders` (POST), `/orders/me` (GET), `/orders/:id` (GET) e `/subscriptions/me` (GET/PATCH `/subscriptions/:id`). O cálculo de frete fica em `POST /shipping/calculate`.
+- Assinaturas compradas são ativadas após a confirmação simulada; preferências de moagem/frequência e status podem ser gerenciadas em `/conta`.
 
 ## Taste Finder
 

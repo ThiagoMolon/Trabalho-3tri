@@ -142,6 +142,10 @@
   list-style: none;
 }
 
+.confirmation-next-steps ul { display: grid; gap: 8px; margin-top: 12px; }
+.confirmation-next-steps ul li { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; border-top: 1px solid $brand-border; font-size: 13px; }
+.confirmation-next-steps ul strong { white-space: nowrap; }
+
 .confirmation-next-steps li {
   display: grid;
   grid-template-columns: 30px minmax(0, 1fr);

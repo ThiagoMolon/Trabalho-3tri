@@ -8,6 +8,9 @@ const createStorefrontRouter = require('./routes/storefront')
 const createSubscriptionRouters = require('./routes/subscriptions')
 const createQuizRouter = require('./routes/quiz')
 const createAuthRouter = require('./routes/auth')
+const createAddressesRouter = require('./routes/addresses')
+const createShippingRouter = require('./routes/shipping')
+const createOrdersRouter = require('./routes/orders')
 
 const app = express()
 const port = process.env.PORT || 3000
@@ -50,6 +53,10 @@ app.use('/quiz', createQuizRouter(pool, requireAuth, requireAdmin))
 const subscriptionRouters = createSubscriptionRouters(pool)
 app.use('/planos', requireAuth, requireAdmin, subscriptionRouters.plans)
 app.use('/assinaturas', requireAuth, requireAdmin, subscriptionRouters.subscriptions)
+app.use('/subscriptions', requireAuth, subscriptionRouters.customers)
+app.use('/addresses', requireAuth, createAddressesRouter(pool))
+app.use('/shipping', createShippingRouter(pool))
+app.use('/orders', requireAuth, createOrdersRouter(pool))
 
 async function ensureUsersTable() {
   await pool.query(`
@@ -105,6 +112,23 @@ async function ensureProductsTable() {
   `)
 }
 
+async function ensureAddressesTable() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS addresses (
+      id SERIAL PRIMARY KEY,
+      user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      cep CHAR(8) NOT NULL,
+      street VARCHAR(200) NOT NULL,
+      number VARCHAR(20) NOT NULL,
+      complement VARCHAR(100),
+      neighborhood VARCHAR(100) NOT NULL,
+      city VARCHAR(100) NOT NULL,
+      state CHAR(2) NOT NULL
+    )
+  `)
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_addresses_user ON addresses(user_id)')
+}
+
 async function ensureSubscriptionTables() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS subscription_plans (
@@ -118,6 +142,20 @@ async function ensureSubscriptionTables() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `)
+  await pool.query("ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS description TEXT")
+  await pool.query("ALTER TABLE subscription_plans ADD COLUMN IF NOT EXISTS frequency VARCHAR(20) NOT NULL DEFAULT 'mensal'")
+  await pool.query(`
+    DO $$
+    BEGIN
+      IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'subscription_plans' AND column_name = 'weight_grams'
+      ) THEN
+        ALTER TABLE subscription_plans ALTER COLUMN weight_grams DROP NOT NULL;
+      END IF;
+    END;
+    $$;
+  `)
   await pool.query(`
     CREATE TABLE IF NOT EXISTS subscription_plan_products (
       plan_id INT NOT NULL REFERENCES subscription_plans(id) ON DELETE CASCADE,
@@ -130,13 +168,114 @@ async function ensureSubscriptionTables() {
       id SERIAL PRIMARY KEY,
       customer_name VARCHAR(200) NOT NULL,
       customer_email VARCHAR(254) NOT NULL,
+      user_id INT REFERENCES users(id) ON DELETE CASCADE,
       plan_id INT NOT NULL REFERENCES subscription_plans(id) ON DELETE RESTRICT,
+      address_id INT REFERENCES addresses(id) ON DELETE SET NULL,
+      grind VARCHAR(50),
+      frequency VARCHAR(20),
       status VARCHAR(20) NOT NULL CHECK (status IN ('ativa', 'pausada', 'cancelada')),
       started_at DATE NOT NULL DEFAULT CURRENT_DATE,
       next_renewal DATE,
+      canceled_at TIMESTAMPTZ,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `)
+  await pool.query('ALTER TABLE customer_subscriptions ADD COLUMN IF NOT EXISTS user_id INT REFERENCES users(id) ON DELETE CASCADE')
+  await pool.query('ALTER TABLE customer_subscriptions ADD COLUMN IF NOT EXISTS address_id INT REFERENCES addresses(id) ON DELETE SET NULL')
+  await pool.query('ALTER TABLE customer_subscriptions ADD COLUMN IF NOT EXISTS grind VARCHAR(50)')
+  await pool.query('ALTER TABLE customer_subscriptions ADD COLUMN IF NOT EXISTS frequency VARCHAR(20)')
+  await pool.query('ALTER TABLE customer_subscriptions ADD COLUMN IF NOT EXISTS canceled_at TIMESTAMPTZ')
+  await pool.query(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'customer_subscriptions_user_id_fkey'
+          AND conrelid = 'customer_subscriptions'::regclass
+      ) THEN
+        ALTER TABLE customer_subscriptions
+          ADD CONSTRAINT customer_subscriptions_user_id_fkey
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE NOT VALID;
+      END IF;
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'customer_subscriptions_address_id_fkey'
+          AND conrelid = 'customer_subscriptions'::regclass
+      ) THEN
+        ALTER TABLE customer_subscriptions
+          ADD CONSTRAINT customer_subscriptions_address_id_fkey
+          FOREIGN KEY (address_id) REFERENCES addresses(id) ON DELETE SET NULL NOT VALID;
+      END IF;
+    END;
+    $$;
+  `)
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_subs_user ON customer_subscriptions(user_id)')
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_subs_status ON customer_subscriptions(status)')
+}
+
+async function ensureOrderTables() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS orders (
+      id SERIAL PRIMARY KEY,
+      user_id INT NOT NULL REFERENCES users(id),
+      address_id INT REFERENCES addresses(id) ON DELETE SET NULL,
+      shipping_address JSONB NOT NULL,
+      subtotal NUMERIC(10,2) NOT NULL CHECK (subtotal >= 0),
+      shipping_cost NUMERIC(10,2) NOT NULL DEFAULT 0 CHECK (shipping_cost >= 0),
+      total NUMERIC(10,2) NOT NULL CHECK (total >= 0),
+      status VARCHAR(15) NOT NULL DEFAULT 'pending'
+        CHECK (status IN ('pending', 'paid', 'shipped', 'delivered', 'canceled')),
+      payment_gateway VARCHAR(15) CHECK (payment_gateway IN ('stripe', 'mercadopago', 'simulation')),
+      gateway_payment_id VARCHAR(100) UNIQUE,
+      tracking_code VARCHAR(60),
+      label_url VARCHAR(500),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `)
+  await pool.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS address_id INT REFERENCES addresses(id) ON DELETE SET NULL')
+  await pool.query(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'orders_address_id_fkey' AND conrelid = 'orders'::regclass
+      ) THEN
+        ALTER TABLE orders
+          ADD CONSTRAINT orders_address_id_fkey
+          FOREIGN KEY (address_id) REFERENCES addresses(id) ON DELETE SET NULL NOT VALID;
+      END IF;
+    END;
+    $$;
+  `)
+  await pool.query('ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_payment_gateway_check')
+  await pool.query(`
+    ALTER TABLE orders ADD CONSTRAINT orders_payment_gateway_check
+    CHECK (payment_gateway IS NULL OR payment_gateway IN ('stripe', 'mercadopago', 'simulation'))
+  `)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS order_items (
+      id SERIAL PRIMARY KEY,
+      order_id INT NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+      product_id INT REFERENCES products(id),
+      plan_id INT REFERENCES subscription_plans(id),
+      subscription_id INT REFERENCES customer_subscriptions(id),
+      batch_id INT,
+      grind VARCHAR(50),
+      frequency VARCHAR(20),
+      quantity INT NOT NULL CHECK (quantity > 0),
+      unit_price NUMERIC(10,2) NOT NULL CHECK (unit_price >= 0),
+      is_recurring BOOLEAN NOT NULL DEFAULT FALSE
+    )
+  `)
+  await pool.query('ALTER TABLE order_items ADD COLUMN IF NOT EXISTS plan_id INT REFERENCES subscription_plans(id)')
+  await pool.query('ALTER TABLE order_items ADD COLUMN IF NOT EXISTS frequency VARCHAR(20)')
+  await pool.query('ALTER TABLE order_items DROP CONSTRAINT IF EXISTS order_items_subscription_id_fkey')
+  await pool.query(`
+    ALTER TABLE order_items ADD CONSTRAINT order_items_subscription_id_fkey
+    FOREIGN KEY (subscription_id) REFERENCES customer_subscriptions(id) NOT VALID
+  `)
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_orders_user ON orders(user_id)')
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_order_items_order ON order_items(order_id)')
 }
 
 async function ensureQuizTables() {
@@ -221,7 +360,9 @@ app.get('/health', async (_req, res) => {
 
 ensureUsersTable()
   .then(ensureProductsTable)
+  .then(ensureAddressesTable)
   .then(ensureSubscriptionTables)
+  .then(ensureOrderTables)
   .then(ensureQuizTables)
   .then(() => {
     app.listen(port, () => {

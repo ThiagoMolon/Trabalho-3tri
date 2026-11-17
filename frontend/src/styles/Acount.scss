@@ -217,6 +217,23 @@
   &--error { color: #8a2f27; }
 }
 
+.account-address-list, .account-orders-list { display: grid; gap: 10px; margin-top: 14px; }
+.account-address-list li, .account-orders-list article, .account-subscription-card { padding: 14px; border: 1px solid rgba($brand-sand, .8); border-radius: 6px; }
+.account-address-list li { display: flex; justify-content: space-between; gap: 12px; }
+.account-address-list button, .account-subscription-card button, .account-address-form button { border: 1px solid $brand-roast; border-radius: 4px; padding: 7px 12px; background: $brand-white; color: $brand-roast; }
+.account-address-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 18px; }
+.account-address-form label, .account-subscription-preferences label { display: grid; gap: 5px; color: $brand-moss; font-size: 14px; }
+.account-address-form input, .account-subscription-preferences select { width: 100%; min-height: 38px; padding: 6px 9px; border: 1px solid $brand-sand; border-radius: 4px; background: $brand-white; color: $brand-forest; }
+.account-address-form button { align-self: end; min-height: 38px; }
+.account-subscription-card { margin-top: 14px; }
+.account-subscription-card h3 { font-size: 19px; }
+.account-subscription-card > p { margin-top: 6px; }
+.account-subscription-preferences { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)) auto; gap: 10px; align-items: end; margin-top: 14px; }
+.account-subscription-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.account-orders-list article > div { display: flex; justify-content: space-between; gap: 12px; }
+.account-orders-list article p { margin-top: 6px; }
+.account-orders-list article a { display: inline-block; margin-top: 8px; color: $brand-caramel; text-decoration: underline; }
+
 // ===== Responsivo =====
 @media (max-width: 1100px) {
   .account-topbar { padding: 0 24px; }
@@ -239,4 +256,6 @@
   .taste-profile__list { grid-template-columns: 1fr; }
   .account-footer { flex-direction: column; padding: 20px 24px; }
   .account-footer__contact { text-align: left; }
+  .account-address-form, .account-subscription-preferences { grid-template-columns: 1fr; }
+  .account-address-list li, .account-orders-list article > div { align-items: flex-start; flex-direction: column; }
 }
