@@ -1,0 +1,15 @@
+{
+  "name": "trabalho-3tri",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-11-04",
+  "compatibility_flags": ["nodejs_compat"],
+  "hyperdrive": [
+    {
+      "binding": "HYPERDRIVE",
+      "id": "1e1a8bb771f245b1824c72d0a6beb1de"
+    }
+  ],
+  "observability": {
+    "enabled": true
+  }
+}

@@ -8,7 +8,8 @@
     "start": "node server.js",
     "promote-admin": "node scripts/promote-admin.js",
     "test": "node --test",
-    "postinstall": "prisma skills sync || exit 0"
+    "postinstall": "prisma skills sync || exit 0",
+    "contract:emit": "prisma contract emit"
   },
   "keywords": [],
   "author": "",
@@ -16,9 +17,10 @@
   "type": "commonjs",
   "dependencies": {
     "@prisma/client": "^7.10.0",
+    "@prisma/orm-postgres": "^8.0.0-rc.24",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
-    "dotenv": "^18.0.3",
+    "dotenv": "^18.0.10",
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3",
     "nodemailer": "^10.3.1",
@@ -26,7 +28,9 @@
     "resend": "^6.37.0"
   },
   "devDependencies": {
+    "@prisma/cli-engine": "^0.2.3",
+    "@types/node": "^26.6.6",
     "nodemon": "^3.1.14",
-    "prisma": "^8.0.0-rc.19"
+    "prisma": "^8.0.0-rc.10"
   }
 }
