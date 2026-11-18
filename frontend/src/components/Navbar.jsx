@@ -22,12 +22,20 @@ function Navbar({
   visibleLinks = defaultVisibleLinks,
 }) {
   const [cartCount, setCartCount] = useState(getCartCount)
+  const [cartNotice, setCartNotice] = useState('')
   const displayedCartCount = cartCountOverride ?? cartCount
   const visibleLinkSet = new Set(visibleLinks)
 
   useEffect(() => {
-    function updateCartCount() {
+    let noticeTimeout
+    function updateCartCount(event) {
       setCartCount(getCartCount())
+      const notice = event.detail?.notice
+      if (!notice) return
+
+      setCartNotice(notice)
+      window.clearTimeout(noticeTimeout)
+      noticeTimeout = window.setTimeout(() => setCartNotice(''), 3500)
     }
 
     window.addEventListener('origin-cart-updated', updateCartCount)
@@ -35,6 +43,7 @@ function Navbar({
     return () => {
       window.removeEventListener('origin-cart-updated', updateCartCount)
       window.removeEventListener('storage', updateCartCount)
+      window.clearTimeout(noticeTimeout)
     }
   }, [])
 
@@ -62,6 +71,15 @@ function Navbar({
           </a>
         )}
       </nav>
+      {cartNotice && (
+        <aside className="cart-add-notice" role="status" aria-live="polite">
+          <div className="cart-add-notice__copy">
+            <strong>Adicionado ao carrinho</strong>
+            <span>{cartNotice}</span>
+          </div>
+          <a className="cart-add-notice__link" href="/carrinho">Ver carrinho</a>
+        </aside>
+      )}
     </header>
   )
 }

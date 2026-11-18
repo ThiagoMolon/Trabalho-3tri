@@ -107,7 +107,7 @@ function ProductCard({ product, onAdd, profileFilterActive = false }) {
 }
 
 function CartFeedback({ message }) {
-  return message ? <p className="inline-feedback" role="status">{message}</p> : null
+  return message ? <p className="inline-feedback feedback-error" role="alert">{message}</p> : null
 }
 
 function Storefront() {
@@ -143,7 +143,7 @@ function Storefront() {
 
   function addProduct(product) {
     const result = addCartItem(product)
-    setFeedback(result || `${product.name} adicionado ao carrinho.`)
+    setFeedback(result)
   }
 
   return (
@@ -231,7 +231,7 @@ function ProductDetails({ productId }) {
   const notes = Array.isArray(product.sensory_notes) ? product.sensory_notes : []
   function addProduct() {
     const result = addCartItem(product, quantity, grind)
-    setFeedback(result || `${product.name} adicionado ao carrinho.`)
+    setFeedback(result)
   }
 
   return (
@@ -281,7 +281,7 @@ function SubscriptionPlans() {
 
   function addPlan(plan, grind, frequency) {
     const result = addSubscriptionCartItem(plan, 1, grind, frequency)
-    setFeedback(result || `${plan.name} adicionado ao carrinho.`)
+    setFeedback(result)
   }
 
   return (
@@ -313,7 +313,7 @@ function SubscriptionPlans() {
               ))}
             </div>
           </StoreState>
-          {feedback && <p className="inline-feedback" role="status">{feedback}</p>}
+          {feedback && <p className="inline-feedback feedback-error" role="alert">{feedback}</p>}
           <p className="plans-disclaimer">Os planos são demonstrativos. Nenhuma assinatura real ou cobrança recorrente será criada.</p>
         </section>
       </main>

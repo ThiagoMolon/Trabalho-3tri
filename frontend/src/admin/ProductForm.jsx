@@ -87,6 +87,10 @@ function ProductForm({ editingId = null, initialValues = initialProduct, onCance
               <span>Nome do produto <b>*</b></span>
               <input name="name" value={product.name} onChange={updateField} maxLength="200" required placeholder="Ex.: Café Serra do Caparaó" />
             </label>
+            <label className="field field-wide">
+              <span>Descrição</span>
+              <textarea name="description" value={product.description} onChange={updateField} rows="3" placeholder="Descreva o produto" />
+            </label>
             <label className="field">
               <span>Categoria <b>*</b></span>
               <select name="category" value={product.category} onChange={updateField} required>

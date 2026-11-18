@@ -222,7 +222,7 @@ export default function Landpage() {
 
   function addProduct(product) {
     const result = addCartItem(product)
-    setCartFeedback(result || `${product.name} adicionado ao carrinho.`)
+    setCartFeedback(result)
   }
 
   return (
@@ -237,7 +237,7 @@ export default function Landpage() {
           error={productsError}
           onAdd={addProduct}
         />
-        {cartFeedback && <p className="landing-cart-feedback" role="status">{cartFeedback}</p>}
+        {cartFeedback && <p className="landing-cart-feedback landing-cart-feedback--error" role="alert">{cartFeedback}</p>}
         <TasteFinder />
         <Plans plans={plans} loading={plansLoading} error={plansError} />
       </main>

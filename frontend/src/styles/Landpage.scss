@@ -415,6 +415,8 @@ $content-width: 1200px;
   margin: -76px auto 48px;
   color: $forest;
   font: 600 14px/1.4 $sans;
+
+  &--error { color: #762f24; }
 }
 
 .landing-taste {

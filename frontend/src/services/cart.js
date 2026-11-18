@@ -37,11 +37,11 @@ export function readCart() {
   }
 }
 
-function writeCart(items) {
+function writeCart(items, notice = '') {
   try {
     window.localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(items))
     window.localStorage.removeItem(SHIPPING_STORAGE_KEY)
-    window.dispatchEvent(new Event('origin-cart-updated'))
+    window.dispatchEvent(new CustomEvent('origin-cart-updated', { detail: { notice } }))
     return ''
   } catch (error) {
     console.error('Could not save the local cart:', error)
@@ -70,7 +70,7 @@ export function addCartItem(product, quantity = 1, grind = 'Grãos inteiros') {
       grind,
     })
   }
-  return writeCart(items)
+  return writeCart(items, product.name)
 }
 
 export function addSubscriptionCartItem(plan, quantity = 1, grind = 'Grãos inteiros', frequency = 'mensal') {
@@ -96,7 +96,7 @@ export function addSubscriptionCartItem(plan, quantity = 1, grind = 'Grãos inte
       frequency,
     })
   }
-  return writeCart(items)
+  return writeCart(items, plan.name)
 }
 
 function sameCartItem(left, right) {

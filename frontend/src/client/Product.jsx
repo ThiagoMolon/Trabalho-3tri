@@ -96,7 +96,7 @@ function ProductInfo({ product, onAdd }) {
   const notes = Array.isArray(product.sensory_notes) ? product.sensory_notes : []
   function addProduct() {
     const error = onAdd(quantity, product.category === 'graos' ? grind : 'Não se aplica')
-    setFeedback(error || `${product.name} adicionado ao carrinho.`)
+    setFeedback(error)
   }
 
   return (
@@ -129,7 +129,7 @@ function ProductInfo({ product, onAdd }) {
           {product.in_stock ? 'Adicionar ao carrinho' : 'Fora de estoque'}
         </button>
       </div>
-      {feedback && <p className="purchase__feedback" role="status">{feedback}</p>}
+      {feedback && <p className="purchase__feedback purchase__feedback--error" role="alert">{feedback}</p>}
 
       {product.description && (
         <section className="product-info__description">

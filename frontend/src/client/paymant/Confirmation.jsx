@@ -103,6 +103,7 @@ export default function ConfirmationPage({ orderId, subscriptionId }) {
       }
       const failures = [clearCart(), clearDelivery(), clearShippingQuote()].filter(Boolean)
       if (failures.length) setCleanupError(failures.join(' '))
+      window.location.assign('/loja')
     } catch (requestError) {
       setConfirmError(requestError.response?.data?.message || 'Não foi possível confirmar o pagamento demonstrativo.')
     } finally {

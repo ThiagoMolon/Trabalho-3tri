@@ -144,11 +144,14 @@
 .confirmation-next-steps ol {
   display: grid;
   gap: 0;
+  margin: 0;
+  padding: 0;
   list-style: none;
 }
 
 .confirmation-next-steps ul { display: grid; gap: 8px; margin-top: 12px; }
 .confirmation-next-steps ul li { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; border-top: 1px solid $brand-border; font-size: 13px; }
+.confirmation-next-steps ul li > span { min-width: 0; overflow-wrap: anywhere; }
 .confirmation-next-steps ul strong { white-space: nowrap; }
 
 .confirmation-confirm-button {
@@ -168,7 +171,7 @@
   }
 }
 
-.confirmation-next-steps li {
+.confirmation-next-steps ol > li {
   display: grid;
   grid-template-columns: 30px minmax(0, 1fr);
   gap: 10px;
@@ -176,7 +179,7 @@
   border-top: 1px solid $brand-border;
 }
 
-.confirmation-next-steps li > span {
+.confirmation-next-steps ol > li > span {
   display: grid;
   width: 27px;
   height: 27px;
@@ -194,7 +197,7 @@
   font-size: 14px;
 }
 
-.confirmation-next-steps li p,
+.confirmation-next-steps ol > li p,
 .confirmation-info > p:last-child {
   margin-top: 2px;
   color: $brand-caramel;

@@ -265,6 +265,11 @@ export default function DestinationPage() {
                       </select>
                     </label>
                   )}
+                  {selectedAddressId && (
+                    <p className="destination-saved-address-note" role="status">
+                      Endereço salvo selecionado. Escolha “Informar novo endereço” para cadastrar outro.
+                    </p>
+                  )}
                   <div className="destination-fields">
                     <div className="destination-field destination-field--full">
                       <label htmlFor="recipient">Nome completo do destinatário</label>
@@ -280,8 +285,8 @@ export default function DestinationPage() {
                       <label htmlFor="cep">CEP</label>
                       <div className="destination-cep-row">
                         <input id="cep" inputMode="numeric" placeholder="00000000" maxLength={8}
-                          value={address.cep} onChange={(event) => updateAddress('cep', event.target.value.replace(/\D/g, '').slice(0, 8))} required />
-                        <button type="button" onClick={lookupCep} disabled={lookingUpCep}>
+                          value={address.cep} onChange={(event) => updateAddress('cep', event.target.value.replace(/\D/g, '').slice(0, 8))} required disabled={Boolean(selectedAddressId)} />
+                        <button type="button" onClick={lookupCep} disabled={Boolean(selectedAddressId) || lookingUpCep}>
                           {lookingUpCep ? 'Buscando...' : 'Buscar CEP'}
                         </button>
                       </div>
@@ -289,32 +294,32 @@ export default function DestinationPage() {
                     <div className="destination-field destination-field--street">
                       <label htmlFor="street">Rua / Avenida</label>
                       <input id="street" autoComplete="address-line1" value={address.street}
-                        onChange={(event) => updateAddress('street', event.target.value)} required />
+                        onChange={(event) => updateAddress('street', event.target.value)} required disabled={Boolean(selectedAddressId)} />
                     </div>
                     <div className="destination-field">
                       <label htmlFor="number">Número</label>
                       <input id="number" autoComplete="address-line2" value={address.number}
-                        onChange={(event) => updateAddress('number', event.target.value)} required />
+                        onChange={(event) => updateAddress('number', event.target.value)} required disabled={Boolean(selectedAddressId)} />
                     </div>
                     <div className="destination-field">
                       <label htmlFor="complement">Complemento (opcional)</label>
                       <input id="complement" value={address.complement}
-                        onChange={(event) => updateAddress('complement', event.target.value)} />
+                        onChange={(event) => updateAddress('complement', event.target.value)} disabled={Boolean(selectedAddressId)} />
                     </div>
                     <div className="destination-field">
                       <label htmlFor="neighborhood">Bairro</label>
                       <input id="neighborhood" autoComplete="address-level3" value={address.neighborhood}
-                        onChange={(event) => updateAddress('neighborhood', event.target.value)} required />
+                        onChange={(event) => updateAddress('neighborhood', event.target.value)} required disabled={Boolean(selectedAddressId)} />
                     </div>
                     <div className="destination-field destination-field--city">
                       <label htmlFor="city">Cidade</label>
                       <input id="city" autoComplete="address-level2" value={address.city}
-                        onChange={(event) => updateAddress('city', event.target.value)} required />
+                        onChange={(event) => updateAddress('city', event.target.value)} required disabled={Boolean(selectedAddressId)} />
                     </div>
                     <div className="destination-field">
                       <label htmlFor="state">Estado</label>
                       <select id="state" autoComplete="address-level1" value={address.state}
-                        onChange={(event) => updateAddress('state', event.target.value)} required>
+                        onChange={(event) => updateAddress('state', event.target.value)} required disabled={Boolean(selectedAddressId)}>
                         <option value="">Selecionar</option>
                         {states.map((state) => <option key={state}>{state}</option>)}
                       </select>

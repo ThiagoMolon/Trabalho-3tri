@@ -37,9 +37,11 @@ function AccountMenu({ onLogout, signingOut }) {
 }
 
 function AddressManager({ addresses, onAdd, onDelete, saving, feedback }) {
+  const [addingAddress, setAddingAddress] = useState(false)
   const [form, setForm] = useState({
     cep: '', street: '', number: '', complement: '', neighborhood: '', city: '', state: '',
   })
+  const showAddressForm = addresses.length === 0 || addingAddress
 
   function updateField(event) {
     setForm((current) => ({ ...current, [event.target.name]: event.target.value }))
@@ -48,7 +50,10 @@ function AddressManager({ addresses, onAdd, onDelete, saving, feedback }) {
   async function submit(event) {
     event.preventDefault()
     const saved = await onAdd({ ...form, cep: form.cep.replace(/\D/g, '') })
-    if (saved) setForm({ cep: '', street: '', number: '', complement: '', neighborhood: '', city: '', state: '' })
+    if (saved) {
+      setForm({ cep: '', street: '', number: '', complement: '', neighborhood: '', city: '', state: '' })
+      setAddingAddress(false)
+    }
   }
 
   return (
@@ -65,16 +70,26 @@ function AddressManager({ addresses, onAdd, onDelete, saving, feedback }) {
           ))}
         </ul>
       )}
-      <form className="account-address-form" onSubmit={submit}>
-        <label>CEP<input name="cep" inputMode="numeric" maxLength="8" value={form.cep} onChange={(event) => setForm((current) => ({ ...current, cep: event.target.value.replace(/\D/g, '').slice(0, 8) }))} required /></label>
-        <label>Rua<input name="street" value={form.street} onChange={updateField} required /></label>
-        <label>Número<input name="number" value={form.number} onChange={updateField} required /></label>
-        <label>Complemento<input name="complement" value={form.complement} onChange={updateField} /></label>
-        <label>Bairro<input name="neighborhood" value={form.neighborhood} onChange={updateField} required /></label>
-        <label>Cidade<input name="city" value={form.city} onChange={updateField} required /></label>
-        <label>Estado<input name="state" maxLength="2" value={form.state} onChange={(event) => setForm((current) => ({ ...current, state: event.target.value.toUpperCase().slice(0, 2) }))} required /></label>
-        <button type="submit" disabled={saving}>{saving ? 'Salvando...' : 'Adicionar endereço'}</button>
-      </form>
+      {addresses.length > 0 && !addingAddress && (
+        <button className="account-address-add" type="button" onClick={() => setAddingAddress(true)}>
+          Adicionar outro endereço
+        </button>
+      )}
+      {showAddressForm && (
+        <form className="account-address-form" onSubmit={submit}>
+          <label>CEP<input name="cep" inputMode="numeric" maxLength="8" value={form.cep} onChange={(event) => setForm((current) => ({ ...current, cep: event.target.value.replace(/\D/g, '').slice(0, 8) }))} required /></label>
+          <label>Rua<input name="street" value={form.street} onChange={updateField} required /></label>
+          <label>Número<input name="number" value={form.number} onChange={updateField} required /></label>
+          <label>Complemento<input name="complement" value={form.complement} onChange={updateField} /></label>
+          <label>Bairro<input name="neighborhood" value={form.neighborhood} onChange={updateField} required /></label>
+          <label>Cidade<input name="city" value={form.city} onChange={updateField} required /></label>
+          <label>Estado<input name="state" maxLength="2" value={form.state} onChange={(event) => setForm((current) => ({ ...current, state: event.target.value.toUpperCase().slice(0, 2) }))} required /></label>
+          {addresses.length > 0 && (
+            <button type="button" onClick={() => setAddingAddress(false)}>Cancelar</button>
+          )}
+          <button type="submit" disabled={saving}>{saving ? 'Salvando...' : 'Adicionar endereço'}</button>
+        </form>
+      )}
       {feedback && <p role="status">{feedback}</p>}
     </section>
   )
