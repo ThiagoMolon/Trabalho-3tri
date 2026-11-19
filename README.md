@@ -49,7 +49,7 @@ Como alternativa, inicie a API na pasta `backend` (`npm run dev`) com `DATABASE_
 
 ## Deploy do frontend no Cloudflare Pages
 
-Com `npm` e Wrangler CLI instalados e autenticados, execute `./deploy.sh` na raiz do projeto. O script compila o frontend para usar a mesma origem e publica `frontend/dist` e a função proxy no Cloudflare Pages `trabalho-3tri`; assim, o cookie de sessão não depende de cookies de terceiros. A função encaminha as rotas da API para `https://trabalho-3tri.onrender.com`. Se a API mudar, configure `API_ORIGIN` nas variáveis do ambiente do Cloudflare Pages. O script para imediatamente se o build falhar, sem publicar arquivos antigos.
+Com `npm` e Wrangler CLI instalados e autenticados, execute `./deploy.sh` na raiz do projeto. O script compila o frontend para usar a mesma origem e publica `frontend/dist` e a função proxy no Cloudflare Pages `trabalho-3tri`; assim, o cookie de sessão não depende de cookies de terceiros. A função encaminha as rotas da API para `https://trabalho-3tri.onrender.com`, exceto `/payments`, `/products` e `/data/*`, que são atendidas pelo Worker. Se os destinos mudarem, configure `API_ORIGIN` e `ADMIN_API_ORIGIN` nas variáveis do ambiente do Cloudflare Pages. O script para imediatamente se o build falhar, sem publicar arquivos antigos.
 
 ## Mercado Pago
 

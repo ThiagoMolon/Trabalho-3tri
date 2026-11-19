@@ -552,6 +552,9 @@ export default {
 
       // ── DASHBOARD ──
       if (pathname === "/customers" && request.method === "GET") {
+        const user = await getUserFromToken(request, sql, env.AUTH_TOKEN_SECRET);
+        if (!user) return Response.json({ message: "Entre na sua conta." }, { status: 401, headers: responseHeaders });
+        if (user.role !== "admin") return Response.json({ message: "Acesso negado." }, { status: 403, headers: responseHeaders });
         const rows = await sql`SELECT u.id, u.name, u.email, a.city, a.cep, COUNT(o.id) AS orders, u.taste_profile, u.created_at FROM users u LEFT JOIN addresses a ON a.user_id = u.id LEFT JOIN orders o ON o.user_id = u.id WHERE u.role = 'customer' GROUP BY u.id, a.city, a.cep ORDER BY u.created_at DESC LIMIT 100`;
         const customers = rows.map((r: any) => {
           let taste = "—";
@@ -561,10 +564,16 @@ export default {
         return Response.json({ count: customers.length, rows: customers }, { headers: responseHeaders });
       }
       if (pathname === "/payments" && request.method === "GET") {
+        const user = await getUserFromToken(request, sql, env.AUTH_TOKEN_SECRET);
+        if (!user) return Response.json({ message: "Entre na sua conta." }, { status: 401, headers: responseHeaders });
+        if (user.role !== "admin") return Response.json({ message: "Acesso negado." }, { status: 403, headers: responseHeaders });
         const rows = await sql`SELECT o.id, o.created_at AS date, CONCAT('Pedido #', o.id) AS reference, u.name AS customer, COALESCE(o.payment_gateway, '—') AS method, CAST(o.total AS FLOAT) AS amount, o.status FROM orders o JOIN users u ON u.id = o.user_id ORDER BY o.created_at DESC LIMIT 100`;
         return Response.json({ count: rows.length, rows: rows.map((r: any) => ({ id: r.id, date: r.date ? new Date(r.date).toISOString().slice(0,10) : null, reference: r.reference, customer: r.customer, method: r.method, amount: parseFloat(r.amount) || 0, status: r.status })) }, { headers: responseHeaders });
       }
       if (pathname === "/products" && request.method === "GET") {
+        const user = await getUserFromToken(request, sql, env.AUTH_TOKEN_SECRET);
+        if (!user) return Response.json({ message: "Entre na sua conta." }, { status: 401, headers: responseHeaders });
+        if (user.role !== "admin") return Response.json({ message: "Acesso negado." }, { status: 403, headers: responseHeaders });
         const rows = await sql`SELECT id, name, category, price, weight_grams, image_url, origin, producer, score, stock, active FROM products ORDER BY id LIMIT 100`;
         return Response.json({ count: rows.length, rows: rows.map((r: any) => ({ ...r, price: parseFloat(r.price) || 0, score: parseFloat(r.score) || 0 })) }, { headers: responseHeaders });
       }
@@ -572,6 +581,9 @@ export default {
       // ── GENERIC DATA ──
       const dataMatch = pathname.match(/^\/data\/(\w+)$/);
       if (dataMatch && request.method === "GET") {
+        const user = await getUserFromToken(request, sql, env.AUTH_TOKEN_SECRET);
+        if (!user) return Response.json({ message: "Entre na sua conta." }, { status: 401, headers: responseHeaders });
+        if (user.role !== "admin") return Response.json({ message: "Acesso negado." }, { status: 403, headers: responseHeaders });
         const tableName = dataMatch[1];
         const rows = await sql`SELECT * FROM ${sql(tableName)} LIMIT 100`;
         return Response.json({ table: tableName, count: rows.length, rows }, { headers: responseHeaders });

@@ -59,6 +59,10 @@ test('proxies transactional commerce endpoints to the API', async () => {
       '/planos',
       '/assinaturas',
       '/subscriptions',
+      '/customers',
+      '/payments',
+      '/products',
+      '/data/customer_subscriptions',
       '/addresses',
       '/shipping/calculate',
       '/orders',
@@ -70,7 +74,10 @@ test('proxies transactional commerce endpoints to the API', async () => {
         request: new Request(`https://originbeans.shop${path}`, {
           method: path.includes('calculate') || path.startsWith('/webhooks/') ? 'POST' : 'GET',
         }),
-        env: { API_ORIGIN: 'https://api.example.test' },
+        env: {
+          API_ORIGIN: 'https://api.example.test',
+          ADMIN_API_ORIGIN: 'https://admin-api.example.test',
+        },
         next: () => { throw new Error(`${path} should be proxied to the API`) },
       })
     }
@@ -80,6 +87,10 @@ test('proxies transactional commerce endpoints to the API', async () => {
       'https://api.example.test/planos',
       'https://api.example.test/assinaturas',
       'https://api.example.test/subscriptions',
+      'https://api.example.test/customers',
+      'https://admin-api.example.test/payments',
+      'https://admin-api.example.test/products',
+      'https://admin-api.example.test/data/customer_subscriptions',
       'https://api.example.test/addresses',
       'https://api.example.test/shipping/calculate',
       'https://api.example.test/orders',
