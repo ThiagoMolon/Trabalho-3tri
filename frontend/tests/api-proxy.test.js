@@ -55,6 +55,10 @@ test('proxies transactional commerce endpoints to the API', async () => {
 
   try {
     for (const path of [
+      '/produtos',
+      '/planos',
+      '/assinaturas',
+      '/subscriptions',
       '/addresses',
       '/shipping/calculate',
       '/orders',
@@ -72,6 +76,10 @@ test('proxies transactional commerce endpoints to the API', async () => {
     }
 
     assert.deepEqual(forwardedUrls, [
+      'https://api.example.test/produtos',
+      'https://api.example.test/planos',
+      'https://api.example.test/assinaturas',
+      'https://api.example.test/subscriptions',
       'https://api.example.test/addresses',
       'https://api.example.test/shipping/calculate',
       'https://api.example.test/orders',
